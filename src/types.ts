@@ -8,10 +8,12 @@ export interface BlockIdentity {
   blockHash: string;
   parentHash: string;
   stateRoot: string;
+  extrinsicsRoot: string;
   genesisHash: string;
   specName: string;
   specVersion: number;
   transactionVersion: number;
+  stateVersion: number;
 }
 
 export interface AssetIdentity {

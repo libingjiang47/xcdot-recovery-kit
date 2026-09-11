@@ -145,7 +145,7 @@ export function snapshotCommand(): Command {
 
         const provenance = {
           toolCommit: (await readGitCommit()) ?? 'unknown',
-          toolVersion: '0.1.0',
+          toolVersion: '0.2.0',
           rpc,
           generatedAt: new Date().toISOString(),
           node: process.version,

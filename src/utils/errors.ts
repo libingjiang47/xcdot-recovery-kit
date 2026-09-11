@@ -112,6 +112,27 @@ export class CanonicalSerializationError extends XcDotError {
   }
 }
 
+export class EvidenceCaptureError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('EVIDENCE_CAPTURE_FAILED', message, details);
+    this.name = 'EvidenceCaptureError';
+  }
+}
+
+export class EvidenceBackendUnsupportedError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('EVIDENCE_BACKEND_UNSUPPORTED', message, details);
+    this.name = 'EvidenceBackendUnsupportedError';
+  }
+}
+
+export class EvidenceVerificationError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('EVIDENCE_VERIFICATION_FAILED', message, details);
+    this.name = 'EvidenceVerificationError';
+  }
+}
+
 export function asXcDotError(error: unknown): XcDotError {
   if (error instanceof XcDotError) return error;
   const message = error instanceof Error ? error.message : String(error);
