@@ -2,6 +2,8 @@ import { AssetIdentityMismatchError } from '../utils/errors.js';
 
 export const NETWORK_NAME = 'Moonbeam' as const;
 export const PARA_ID = 2004 as const;
+export const MOONBEAM_GENESIS_HASH =
+  '0xfe58ea77779b7abda7da4ec526d14db9b1e9cd40a217c34892af80a9b332b76d' as const;
 export const XC_DOT_ASSET_ID = 42259045809535163221576417993425387648n;
 export const XC_DOT_ASSET_ID_DECIMAL = XC_DOT_ASSET_ID.toString(10);
 export const XC_DOT_ASSET_ID_HEX = XC_DOT_ASSET_ID.toString(16).padStart(32, '0');

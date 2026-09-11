@@ -8,7 +8,7 @@ It does not determine recovery eligibility, control funds, or represent Moonbeam
 
 ## What it does
 
-v0.1 binds extraction to an explicit Moonbeam block hash, validates the xcDOT asset identity, enumerates `Assets.Account` using runtime metadata, reconciles balances against total supply, and writes a deterministic `holders.ndjson` plus hashes and manifest data. The optional EVM verifier checks the XC-20 `balanceOf` and `totalSupply` at the same block context.
+v0.2 retains the v0.1 snapshot path and adds an evidence-freeze path. `capture-evidence` records the pinned SCALE header, raw storage values, runtime metadata, deterministic trie proof batches, decoded legacy Assets state, and independent hashes. `verify-evidence` runs the Rust `sp-trie` verifier entirely offline.
 
 The authoritative output is a statement of chain state. Contract-held balances remain in the holder set; no beneficiary or recovery entitlement is inferred.
 
@@ -25,6 +25,7 @@ pnpm install
 pnpm build
 pnpm test
 pnpm lint
+cargo test --workspace
 ```
 
 All normal tests use local fixtures and do not require an RPC.
@@ -39,6 +40,8 @@ xcdot-recovery inspect --rpc <moonbeam-substrate-rpc> --block-hash <hash>
 xcdot-recovery snapshot --rpc <moonbeam-substrate-rpc> --block-hash <hash> --out snapshots
 xcdot-recovery verify --rpc <moonbeam-substrate-rpc> --snapshot snapshots/<number>-<short-hash>
 xcdot-recovery evm-check --rpc <moonbeam-evm-rpc> --snapshot snapshots/<number>-<short-hash>
+xcdot-recovery capture-evidence --rpc <moonbeam-substrate-rpc> --block-hash <hash> --out evidence
+xcdot-recovery verify-evidence --bundle evidence/<number>-<short-hash>
 ```
 
 `--rpc` may be omitted only when `MOONBEAM_RPC` is set. No third-party provider is selected automatically.
@@ -59,7 +62,7 @@ The snapshot reports which H160 accounts held xcDOT at a particular Moonbeam sta
 
 ## Current status
 
-The observed finalized height `16,796,696` is retained as an unconfirmed candidate in the documentation. This repository does not declare that block canonical. Canonical publication requires multi-provider agreement, supply reconciliation, EVM verification, review, and a deliberate commit.
+The observed finalized height `16,796,696` remains an unconfirmed candidate. On the current Moonbeam runtime, the old `Assets` storage backend is absent and xcDOT is EVM-backed, so `capture-evidence` fails closed rather than publishing an incomplete holder set. This repository does not declare that block canonical.
 
 ## License
 

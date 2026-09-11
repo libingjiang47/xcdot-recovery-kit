@@ -1,6 +1,6 @@
 # Snapshot methodology
 
-v0.1 records chain facts only. It does not produce a recovery eligibility list.
+The snapshot path records chain facts only. It does not produce a recovery eligibility list.
 
 ## Pinned state
 
@@ -10,7 +10,9 @@ The candidate height mentioned in [canonical-snapshot.md](canonical-snapshot.md)
 
 ## Authoritative state
 
-The source of truth is the Moonbeam Substrate state at the pinned block. Runtime metadata is used through the decoded `assets.asset`, `assets.metadata`, and `assets.account` queries rather than hard-coded pallet indexes or SCALE layouts. `Assets.Account(assetId, account)` is enumerated with deterministic pagination. Keys must be strictly increasing, unique, and decodable; a repeated or malformed page fails the run.
+The source of truth is the Moonbeam Substrate state at the pinned block. The evidence path uses runtime metadata to discover the legacy `Assets.Asset`, `Assets.Metadata`, and `Assets.Account` queries, while retaining every raw key and SCALE value. It uses the runtime-reported `stateVersion` for offline trie verification and never guesses V0 or V1. A runtime without that legacy proof-complete backend is rejected; EVM contract storage is not treated as a holder enumeration without a proven H160 mapping.
+
+The v0.1 snapshot path continues to use decoded `assets.asset`, `assets.metadata`, and `assets.account` queries rather than hard-coded pallet indexes or SCALE layouts. `Assets.Account(assetId, account)` is enumerated with deterministic pagination. Keys must be strictly increasing, unique, and decodable; a repeated or malformed page fails the run.
 
 All decoded accounts are normalized to lowercase H160 addresses. Zero-balance records are validated but omitted from the holder artifact. Non-zero holders are sorted by their raw 20-byte address, which is equivalent to lexicographic order of normalized lowercase hexadecimal.
 
@@ -57,4 +59,4 @@ Using genesis hash `0x` followed by 64 zeroes, block number `42`, block hash `0x
 
 ## Completeness and trust boundary
 
-Full enumeration plus supply reconciliation provides the completeness check for this artifact. An optional future storage read proof can prove one key's value, but cannot prove that no other holders exist. Contract-held balances remain exactly where the chain records them; ownership, beneficiary mapping, and fund execution belong to later policy layers.
+Full legacy enumeration plus supply reconciliation provides the snapshot completeness check. The v0.2 evidence bundle additionally proves every retained storage key against the pinned state root and checks raw bytes offline. Contract-held balances remain exactly where the chain records them; ownership, beneficiary mapping, and fund execution belong to later policy layers.

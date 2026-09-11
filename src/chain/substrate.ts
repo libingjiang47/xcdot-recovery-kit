@@ -9,7 +9,7 @@ import {
   StorageDecodeError,
   WrongChainError,
 } from '../utils/errors.js';
-import { XC_DOT_ASSET_ID } from '../asset/constants.js';
+import { MOONBEAM_GENESIS_HASH, XC_DOT_ASSET_ID } from '../asset/constants.js';
 import type { BlockIdentity, ExtractionResult, HolderRecord } from '../types.js';
 import { canonicalizeHolders } from '../snapshot/canonicalize.js';
 import { assertAccountCountInvariant, assertSupplyInvariant } from '../snapshot/invariants.js';
@@ -64,6 +64,25 @@ function codecNumber(value: unknown, label: string): number {
   return result;
 }
 
+function runtimeStateVersion(runtime: unknown): number {
+  const value = (runtime as { stateVersion?: unknown } | null)?.stateVersion;
+  if (value === undefined || value === null) {
+    throw new RpcUnavailableError(
+      'The pinned runtime does not expose stateVersion; refusing to guess the trie layout.',
+    );
+  }
+  return codecNumber(value, 'state version');
+}
+
+export function assertExpectedMoonbeamGenesis(genesisHash: string): void {
+  if (genesisHash.toLowerCase() !== MOONBEAM_GENESIS_HASH) {
+    throw new WrongChainError('RPC genesis hash is not the expected Moonbeam genesis hash.', {
+      expected: MOONBEAM_GENESIS_HASH,
+      actual: genesisHash,
+    });
+  }
+}
+
 export async function resolveBlock(api: ApiPromise, requestedHash: string): Promise<BlockIdentity> {
   const blockHash = normalizeHash(requestedHash, 'block hash');
   try {
@@ -84,15 +103,18 @@ export async function resolveBlock(api: ApiPromise, requestedHash: string): Prom
     }
     const runtime = await api.rpc.state.getRuntimeVersion(blockHash);
     const genesisHash = normalizeHash(api.genesisHash, 'genesis hash');
+    const stateVersion = runtimeStateVersion(runtime);
     return {
       blockNumber: header.number.toBigInt().toString(10),
       blockHash,
       parentHash: normalizeHash(header.parentHash, 'parent hash'),
       stateRoot: normalizeHash(header.stateRoot, 'state root'),
+      extrinsicsRoot: normalizeHash(header.extrinsicsRoot, 'extrinsics root'),
       genesisHash,
       specName: runtime.specName.toString(),
       specVersion: codecNumber(runtime.specVersion, 'spec version'),
       transactionVersion: codecNumber(runtime.transactionVersion, 'transaction version'),
+      stateVersion,
     };
   } catch (error) {
     if (error instanceof BlockNotFoundError || error instanceof BlockHashMismatchError) throw error;
@@ -112,6 +134,8 @@ export interface ProbeResult {
   stateRoot: string;
   specName: string;
   specVersion: number;
+  transactionVersion: number;
+  stateVersion: number;
   supportsStorageEnumeration: boolean;
 }
 
@@ -140,6 +164,8 @@ export async function probeRpc(api: ApiPromise): Promise<ProbeResult> {
       stateRoot: identity.stateRoot,
       specName: identity.specName,
       specVersion: identity.specVersion,
+      transactionVersion: identity.transactionVersion,
+      stateVersion: identity.stateVersion,
       supportsStorageEnumeration: true,
     };
   } catch (error) {

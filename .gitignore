@@ -1,5 +1,8 @@
 node_modules/
 dist/
 coverage/
+target/
 .tmp-snapshot-*/
+.tmp-evidence-*/
+.work-*/
 .DS_Store
