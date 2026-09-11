@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/libingjiang47/xcdot-recovery-kit/schemas/verification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "substrateSupplyMatchesHolderSum",
+    "evmSupplyMatchesSubstrateSupply",
+    "holderBalancesChecked",
+    "holderBalanceMismatches",
+    "status"
+  ],
+  "properties": {
+    "substrateSupplyMatchesHolderSum": { "type": "boolean" },
+    "evmSupplyMatchesSubstrateSupply": { "type": "boolean" },
+    "holderBalancesChecked": { "type": "integer", "minimum": 0 },
+    "holderBalanceMismatches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["address", "expected", "actual"],
+        "properties": {
+          "address": { "type": "string", "pattern": "^0x[0-9a-f]{40}$" },
+          "expected": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+          "actual": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+        }
+      }
+    },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "status": { "enum": ["PASS", "FAIL", "NOT_RUN"] }
+  }
+}

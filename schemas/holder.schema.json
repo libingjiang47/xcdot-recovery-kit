@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/libingjiang47/xcdot-recovery-kit/schemas/holder.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["address", "balancePlanck"],
+  "properties": {
+    "address": { "type": "string", "pattern": "^0x[0-9a-f]{40}$" },
+    "balancePlanck": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+  }
+}

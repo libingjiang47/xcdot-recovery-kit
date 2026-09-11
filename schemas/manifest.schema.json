@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/libingjiang47/xcdot-recovery-kit/schemas/manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "tool", "chain", "snapshot", "asset", "holders", "snapshotDigest"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "tool": { "const": "xcdot-recovery-kit" },
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "paraId", "genesisHash"],
+      "properties": {
+        "name": { "const": "Moonbeam" },
+        "paraId": { "const": 2004 },
+        "genesisHash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blockNumber",
+        "blockHash",
+        "parentHash",
+        "stateRoot",
+        "specName",
+        "specVersion"
+      ],
+      "properties": {
+        "blockNumber": { "$ref": "#/$defs/unsigned" },
+        "blockHash": { "$ref": "#/$defs/hash" },
+        "parentHash": { "$ref": "#/$defs/hash" },
+        "stateRoot": { "$ref": "#/$defs/hash" },
+        "specName": { "type": "string", "minLength": 1 },
+        "specVersion": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "symbol",
+        "assetId",
+        "xc20Address",
+        "decimals",
+        "totalSupplyPlanck",
+        "accountCount",
+        "minimumBalancePlanck"
+      ],
+      "properties": {
+        "symbol": { "const": "xcDOT" },
+        "assetId": { "$ref": "#/$defs/unsigned" },
+        "xc20Address": { "type": "string", "pattern": "^0x[0-9a-f]{40}$" },
+        "decimals": { "const": 10 },
+        "totalSupplyPlanck": { "$ref": "#/$defs/unsigned" },
+        "accountCount": { "$ref": "#/$defs/unsigned" },
+        "minimumBalancePlanck": { "$ref": "#/$defs/unsigned" },
+        "isFrozen": { "type": "boolean" }
+      }
+    },
+    "holders": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "totalBalancePlanck", "sha256"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "totalBalancePlanck": { "$ref": "#/$defs/unsigned" },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "snapshotDigest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "unsigned": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+    "hash": { "type": "string", "pattern": "^0x[0-9a-f]{64}$" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
