@@ -166,6 +166,7 @@ export interface NownodesFinalStateProbeOptions {
   offlineVerifier?: ArchiveOfflineVerifier;
   verifierBinary?: string;
   projectRoot?: string;
+  includeRuntimeVersion?: boolean;
 }
 
 interface NownodesProbeArtifacts {
@@ -356,6 +357,7 @@ class HttpNownodesRpcClient implements NownodesProbeRpcClient {
     private readonly key: string,
     private readonly timeoutMs: number,
     private readonly fetchImpl: typeof fetch,
+    private readonly authMode: 'header' | 'path',
   ) {}
 
   async request(method: string, params: readonly unknown[]): Promise<unknown> {
@@ -363,12 +365,20 @@ class HttpNownodesRpcClient implements NownodesProbeRpcClient {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let response: Response;
     try {
-      response = await this.fetchImpl(this.endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'api-key': this.key },
-        body: JSON.stringify({ jsonrpc: '2.0', id: this.nextId++, method, params: [...params] }),
-        signal: controller.signal,
-      });
+      response = await this.fetchImpl(
+        this.authMode === 'path'
+          ? `${this.endpoint}${encodeURIComponent(this.key)}`
+          : this.endpoint,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(this.authMode === 'header' ? { 'api-key': this.key } : {}),
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: this.nextId++, method, params: [...params] }),
+          signal: controller.signal,
+        },
+      );
     } catch (error) {
       clearTimeout(timer);
       if (error instanceof Error && error.name === 'AbortError') {
@@ -420,8 +430,9 @@ export function createNownodesRpcClient(
   key: string,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   fetchImpl: typeof fetch = fetch,
+  authMode: 'header' | 'path' = 'header',
 ): NownodesProbeRpcClient {
-  return new HttpNownodesRpcClient(validateEndpoint(endpoint), key, timeoutMs, fetchImpl);
+  return new HttpNownodesRpcClient(validateEndpoint(endpoint), key, timeoutMs, fetchImpl, authMode);
 }
 
 export async function retryNownodesRpc<T>(
@@ -792,38 +803,40 @@ export async function runNownodesFinalStateProbe(
       return { outputDirectory, report, reportText: reportText(report) };
     }
 
-    const runtime = await callRpc(
-      client,
-      'state_getRuntimeVersion',
-      [NOWNODES_FINAL_STATE_PROBE_BLOCK_HASH],
-      attempts,
-      sleep,
-    );
-    if (!runtime.ok) {
-      report.runtime = failStage(report.runtime, runtime.error, runtime.attempts, key);
-    } else {
-      try {
-        const runtimeRecord = asRecord(runtime.value, 'state_getRuntimeVersion result');
-        const specVersion = asUnsignedNumber(runtimeRecord.specVersion, 'runtime.specVersion');
-        const stateVersion = asUnsignedNumber(runtimeRecord.stateVersion, 'runtime.stateVersion');
-        const match =
-          specVersion === '4401' &&
-          stateVersion === String(NOWNODES_FINAL_STATE_PROBE_STATE_VERSION);
-        report.runtime = {
-          ...passStage(report.runtime, runtime.attempts),
-          specVersion,
-          stateVersion,
-          match: match ? 'PASS' : 'FAIL',
-          ...(match
-            ? {}
-            : {
-                errorCode: 'RUNTIME_VERSION_MISMATCH',
-                errorDetail: `Runtime mismatch: specVersion=${specVersion} stateVersion=${stateVersion}.`,
-              }),
-        };
-      } catch (error) {
-        const normalized = normalizeError(error, 'state_getRuntimeVersion');
-        report.runtime = failStage(report.runtime, normalized, runtime.attempts, key);
+    if (options.includeRuntimeVersion !== false) {
+      const runtime = await callRpc(
+        client,
+        'state_getRuntimeVersion',
+        [NOWNODES_FINAL_STATE_PROBE_BLOCK_HASH],
+        attempts,
+        sleep,
+      );
+      if (!runtime.ok) {
+        report.runtime = failStage(report.runtime, runtime.error, runtime.attempts, key);
+      } else {
+        try {
+          const runtimeRecord = asRecord(runtime.value, 'state_getRuntimeVersion result');
+          const specVersion = asUnsignedNumber(runtimeRecord.specVersion, 'runtime.specVersion');
+          const stateVersion = asUnsignedNumber(runtimeRecord.stateVersion, 'runtime.stateVersion');
+          const match =
+            specVersion === '4401' &&
+            stateVersion === String(NOWNODES_FINAL_STATE_PROBE_STATE_VERSION);
+          report.runtime = {
+            ...passStage(report.runtime, runtime.attempts),
+            specVersion,
+            stateVersion,
+            match: match ? 'PASS' : 'FAIL',
+            ...(match
+              ? {}
+              : {
+                  errorCode: 'RUNTIME_VERSION_MISMATCH',
+                  errorDetail: `Runtime mismatch: specVersion=${specVersion} stateVersion=${stateVersion}.`,
+                }),
+          };
+        } catch (error) {
+          const normalized = normalizeError(error, 'state_getRuntimeVersion');
+          report.runtime = failStage(report.runtime, normalized, runtime.attempts, key);
+        }
       }
     }
 

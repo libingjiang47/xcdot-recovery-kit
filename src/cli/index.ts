@@ -21,6 +21,7 @@ import { probeSubstrateArchiveCommand } from './probe-substrate-archive.js';
 import { probeSubstrateArchiveMatrixCommand } from './probe-substrate-archive-matrix.js';
 import { probeSubscanFinalStateCommand } from './probe-subscan-final-state.js';
 import { probeNownodesFinalStateCommand } from './probe-nownodes-final-state.js';
+import { probeDwellirFinalStateCommand } from './probe-dwellir-final-state.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -48,6 +49,7 @@ export function createProgram(): Command {
   program.addCommand(probeSubstrateArchiveMatrixCommand());
   program.addCommand(probeSubscanFinalStateCommand());
   program.addCommand(probeNownodesFinalStateCommand());
+  program.addCommand(probeDwellirFinalStateCommand());
   return program;
 }
 
