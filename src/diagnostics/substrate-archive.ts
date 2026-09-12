@@ -578,6 +578,11 @@ export type ArchiveOfflineVerifier = (
   input: ArchiveOfflineProofInput,
 ) => Promise<ArchiveOfflineProofResult>;
 
+export interface ArchiveOfflineVerifierOptions {
+  verifierBinary?: string;
+  projectRoot?: string;
+}
+
 export interface SubstrateArchiveProbeOptions {
   rpc: string;
   providerName?: string;
@@ -744,7 +749,7 @@ async function pathExists(path: string): Promise<boolean> {
 
 async function defaultOfflineVerifier(
   input: ArchiveOfflineProofInput,
-  options: SubstrateArchiveProbeOptions,
+  options: ArchiveOfflineVerifierOptions,
 ): Promise<ArchiveOfflineProofResult> {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), 'xcdot-archive-proof-'));
   try {
@@ -801,6 +806,18 @@ async function defaultOfflineVerifier(
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
+}
+
+/**
+ * Verify one pinned Substrate read proof with the existing network-independent
+ * Rust verifier. Diagnostic probes use this adapter without running the
+ * broader archive probe or requesting metadata.
+ */
+export async function verifyArchiveProofOffline(
+  input: ArchiveOfflineProofInput,
+  options: ArchiveOfflineVerifierOptions = {},
+): Promise<ArchiveOfflineProofResult> {
+  return defaultOfflineVerifier(input, options);
 }
 
 export interface SubstrateArchiveProbeResult {

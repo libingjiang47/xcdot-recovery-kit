@@ -20,6 +20,7 @@ import { extractFinalStateStorageCommand } from './extract-final-state-storage.j
 import { probeSubstrateArchiveCommand } from './probe-substrate-archive.js';
 import { probeSubstrateArchiveMatrixCommand } from './probe-substrate-archive-matrix.js';
 import { probeSubscanFinalStateCommand } from './probe-subscan-final-state.js';
+import { probeNownodesFinalStateCommand } from './probe-nownodes-final-state.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -46,6 +47,7 @@ export function createProgram(): Command {
   program.addCommand(probeSubstrateArchiveCommand());
   program.addCommand(probeSubstrateArchiveMatrixCommand());
   program.addCommand(probeSubscanFinalStateCommand());
+  program.addCommand(probeNownodesFinalStateCommand());
   return program;
 }
 
