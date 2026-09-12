@@ -210,6 +210,13 @@ export class SubscanFinalStateVerificationError extends XcDotError {
   }
 }
 
+export class SubscanFinalStateProbeError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_FINAL_STATE_PROBE_FAILED', message, details);
+    this.name = 'SubscanFinalStateProbeError';
+  }
+}
+
 export class FinalStateResumeContextMismatchError extends XcDotError {
   constructor(message: string, details: Record<string, string | number | boolean> = {}) {
     super('FINAL_STATE_RESUME_CONTEXT_MISMATCH', message, details);

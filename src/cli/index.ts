@@ -19,6 +19,7 @@ import { inspectEvmStorageLayoutCommand } from './inspect-evm-storage-layout.js'
 import { extractFinalStateStorageCommand } from './extract-final-state-storage.js';
 import { probeSubstrateArchiveCommand } from './probe-substrate-archive.js';
 import { probeSubstrateArchiveMatrixCommand } from './probe-substrate-archive-matrix.js';
+import { probeSubscanFinalStateCommand } from './probe-subscan-final-state.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -44,6 +45,7 @@ export function createProgram(): Command {
   program.addCommand(extractFinalStateStorageCommand());
   program.addCommand(probeSubstrateArchiveCommand());
   program.addCommand(probeSubstrateArchiveMatrixCommand());
+  program.addCommand(probeSubscanFinalStateCommand());
   return program;
 }
 
