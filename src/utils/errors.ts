@@ -231,6 +231,20 @@ export class FinalStateSupplyOverflowError extends XcDotError {
   }
 }
 
+export class Rank565DiagnosticError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('RANK565_DIAGNOSTIC_FAILED', message, details);
+    this.name = 'Rank565DiagnosticError';
+  }
+}
+
+export class Rank565ResumeContextMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('RANK565_RESUME_CONTEXT_MISMATCH', message, details);
+    this.name = 'Rank565ResumeContextMismatchError';
+  }
+}
+
 export function asXcDotError(error: unknown): XcDotError {
   if (error instanceof XcDotError) return error;
   const message = error instanceof Error ? error.message : String(error);

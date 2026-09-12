@@ -13,6 +13,7 @@ import { verifyEvidenceCommand } from './verify-evidence.js';
 import { anchorRelayCommand } from './anchor-relay.js';
 import { importSubscanCommand } from './import-subscan.js';
 import { verifySubscanFinalStateCommand } from './verify-subscan-final-state.js';
+import { diagnoseRank565Command } from './diagnose-rank565.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -32,6 +33,7 @@ export function createProgram(): Command {
   program.addCommand(anchorRelayCommand());
   program.addCommand(importSubscanCommand());
   program.addCommand(verifySubscanFinalStateCommand());
+  program.addCommand(diagnoseRank565Command());
   return program;
 }
 
