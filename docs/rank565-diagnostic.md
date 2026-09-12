@@ -66,5 +66,12 @@ On this WSL host, both the Moonbeam Foundation endpoint
 `https://rpc.api.moonbeam.network` and the independent OnFinality endpoint
 `https://moonbeam.api.onfinality.io/public` failed at the initial historical EVM `eth_chainId`
 request with `fetch failed`. The exact Viem errors are preserved in the corresponding diagnostic
-`report.txt` files. Consequently no zero-address, totalSupply, known-holder, or Transfer-history
-claim is made from this host.
+`report.txt` files.
+
+The public HTTP endpoint `https://1rpc.io/glmr` did return the pinned historical block and passed
+the contract identity checks. It returned `balanceOf(0x0)=0` and
+`totalSupply=2334516727484230` planck, but that total is below the deduplicated valid Subscan
+sum (`3054649714556639` planck). The diagnostic therefore stopped at C3 before querying known
+holders or scanning Transfer history. A subsequent direct historical `balanceOf` request for one
+known holder timed out at the RPC connection boundary, so no complete known-final sum is claimed.
+The exact 1RPC report is preserved under `diagnostics/rank565-1rpc/`.
