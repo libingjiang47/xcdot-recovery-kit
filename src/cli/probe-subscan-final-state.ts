@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import {
   runSubscanFinalStateProbe,
+  SUBSCAN_FINAL_STATE_PROBE_DIRECT_API_ORIGIN,
   SUBSCAN_FINAL_STATE_PROBE_BLOCK_NUMBER,
   SUBSCAN_FINAL_STATE_PROBE_CONTRACT,
   SUBSCAN_FINAL_STATE_PROBE_STATE_ROOT,
@@ -17,6 +18,11 @@ export function probeSubscanFinalStateCommand(): Command {
     'Directory containing candidate-addresses.ndjson',
   );
   command.option(
+    '--access <mode>',
+    'Access path: pubfi or direct-subscan (default: pubfi)',
+    'pubfi',
+  );
+  command.option(
     '--out <directory>',
     'Diagnostic-only output directory',
     'diagnostics/subscan-final-state-probe',
@@ -27,6 +33,7 @@ export function probeSubscanFinalStateCommand(): Command {
   command.action(
     async (options: {
       dataset: string;
+      access: 'pubfi' | 'direct-subscan';
       out: string;
       timeoutMs: string;
       retries: string;
@@ -34,6 +41,7 @@ export function probeSubscanFinalStateCommand(): Command {
     }) =>
       runSubscanFinalStateProbe({
         dataset: options.dataset,
+        access: options.access,
         out: options.out,
         timeoutMs: Number(options.timeoutMs),
         retries: Number(options.retries),
@@ -49,7 +57,8 @@ export function probeSubscanFinalStateCommand(): Command {
       `xcDOT contract: ${SUBSCAN_FINAL_STATE_PROBE_CONTRACT}\n` +
       `Expected state root: ${SUBSCAN_FINAL_STATE_PROBE_STATE_ROOT}\n` +
       `Expected total supply: ${SUBSCAN_FINAL_STATE_PROBE_TOTAL_SUPPLY}\n` +
-      'The command reads PUBFI_KEY from the environment and never writes it to artifacts.\n',
+      `Direct Subscan host: ${SUBSCAN_FINAL_STATE_PROBE_DIRECT_API_ORIGIN}\n` +
+      'Use PUBFI_KEY for pubfi access or SUBSCAN_API_KEY for direct-subscan access; keys are never written to artifacts.\n',
   );
   return command;
 }

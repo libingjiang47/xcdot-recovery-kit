@@ -153,6 +153,61 @@ function makeFetch(options: MockOptions = {}): {
   return { fetchImpl, calls };
 }
 
+function makeDirectFetch(): {
+  fetchImpl: typeof fetch;
+  calls: Array<{
+    url: string;
+    method: string;
+    authorization: string | null;
+    apiKey: string | null;
+  }>;
+} {
+  const calls: Array<{
+    url: string;
+    method: string;
+    authorization: string | null;
+    apiKey: string | null;
+  }> = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = String(input);
+    const headers = new Headers(init?.headers);
+    calls.push({
+      url,
+      method: init?.method ?? 'GET',
+      authorization: headers.get('authorization'),
+      apiKey: headers.get('x-api-key'),
+    });
+    const parsed = new URL(url);
+    let payload: unknown;
+    if (parsed.pathname === '/api/scan/header') {
+      payload = {
+        code: 0,
+        message: 'Success',
+        data: {
+          block_num: 16796696,
+          state_root: SUBSCAN_FINAL_STATE_PROBE_STATE_ROOT,
+        },
+      };
+    } else if (parsed.pathname === '/api/scan/evm/etherscan') {
+      payload = {
+        status: '1',
+        message: 'OK',
+        result:
+          parsed.searchParams.get('action') === 'tokensupplyhistory'
+            ? SUBSCAN_FINAL_STATE_PROBE_TOTAL_SUPPLY
+            : '0',
+      };
+    } else {
+      throw new Error(`Unexpected direct URL: ${url}`);
+    }
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  return { fetchImpl, calls };
+}
+
 async function runProbe(
   dataset: string,
   options: MockOptions = {},
@@ -266,6 +321,43 @@ describe('Subscan/PubFi final-state minimal probe', () => {
         status: 'SUBSCAN_HISTORICAL_STATE_MISMATCH',
       });
       expect(result.calls.some((call) => call.url.includes('tokenbalancehistory'))).toBe(false);
+    } finally {
+      await rm(dataset, { recursive: true, force: true });
+    }
+  });
+
+  it('bypasses PubFi and uses only the direct Subscan key and paths', async () => {
+    const dataset = await makeDataset();
+    const mock = makeDirectFetch();
+    try {
+      const result = await runSubscanFinalStateProbe({
+        access: 'direct-subscan',
+        dataset,
+        out: join(dataset, 'direct-diagnostics'),
+        subscanApiKey: 'direct-key',
+        directApiOrigin: 'https://moonbeam.api.subscan.io',
+        timeoutMs: 1000,
+        retries: 1,
+        delayMs: 0,
+        fetchImpl: mock.fetchImpl,
+        sleep: async () => undefined,
+      });
+      expect(result.report).toMatchObject({
+        access: 'direct-subscan',
+        pubfiKeyPresent: false,
+        subscanApiKeyPresent: true,
+        headerQuery: 'PASS',
+        totalSupplyMatch: 'PASS',
+        historicalBalanceQuery: 'PASS',
+        status: 'SUBSCAN_FINAL_STATE_CAPABLE',
+      });
+      expect(mock.calls).toHaveLength(7);
+      expect(mock.calls.every((call) => call.apiKey === 'direct-key')).toBe(true);
+      expect(mock.calls.every((call) => call.authorization === null)).toBe(true);
+      expect(mock.calls.every((call) => !call.url.includes('/v1/capabilities'))).toBe(true);
+      expect(mock.calls[0]?.url).toContain('https://moonbeam.api.subscan.io/api/scan/header');
+      expect(mock.calls[1]?.url).toContain('/api/scan/evm/etherscan?');
+      expect(mock.calls.every((call) => !call.url.endsWith(':free'))).toBe(true);
     } finally {
       await rm(dataset, { recursive: true, force: true });
     }

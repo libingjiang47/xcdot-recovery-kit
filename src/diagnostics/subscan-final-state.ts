@@ -14,11 +14,15 @@ export const SUBSCAN_FINAL_STATE_PROBE_CONTRACT =
 export const SUBSCAN_FINAL_STATE_PROBE_TOTAL_SUPPLY = '2334516727484230' as const;
 export const SUBSCAN_FINAL_STATE_PROBE_DECIMALS = 10 as const;
 export const SUBSCAN_FINAL_STATE_PROBE_API_ORIGIN = 'https://api.pubfi.ai' as const;
+export const SUBSCAN_FINAL_STATE_PROBE_DIRECT_API_ORIGIN =
+  'https://moonbeam.api.subscan.io' as const;
 export const SUBSCAN_FINAL_STATE_PROBE_HEADER_MATCHER =
   '/v1/gateway/subscan/{network}/api/scan/header' as const;
 export const SUBSCAN_FINAL_STATE_PROBE_ETHERSCAN_MATCHER =
   '/v1/gateway/subscan/{network}/api/scan/evm/etherscan' as const;
 
+const DIRECT_HEADER_PATH = '/api/scan/header';
+const DIRECT_ETHERSCAN_PATH = '/api/scan/evm/etherscan';
 const EXACT_HEADER_MATCHER = '/v1/gateway/subscan/api/scan/header';
 const EXACT_ETHERSCAN_MATCHER = '/v1/gateway/subscan/api/scan/evm/etherscan';
 const SAMPLE_COUNT = 5;
@@ -29,6 +33,7 @@ const RETRY_DELAYS_MS = [1_000, 3_000, 5_000] as const;
 
 export type SubscanProbeFieldStatus = 'PASS' | 'FAIL' | 'NOT_RUN';
 export type SubscanProbeCapability = 'true' | 'false' | 'UNKNOWN';
+export type SubscanProbeAccess = 'pubfi' | 'direct-subscan';
 
 export interface SubscanProbeRoute {
   ready: boolean;
@@ -60,9 +65,11 @@ export interface SubscanProbeFailure {
 
 export interface SubscanFinalStateProbeReport {
   schemaVersion: 1;
+  access: SubscanProbeAccess;
   blockNumber: string;
   xcdot: string;
   pubfiKeyPresent: boolean;
+  subscanApiKeyPresent: boolean;
   pubfiHeaderRouteReady?: boolean;
   pubfiEtherscanRouteReady?: boolean;
   headerQuery: SubscanProbeFieldStatus;
@@ -91,8 +98,11 @@ export interface SubscanFinalStateProbeResult {
 export interface SubscanFinalStateProbeOptions {
   dataset: string;
   out?: string;
+  access?: SubscanProbeAccess;
   pubfiKey?: string;
+  subscanApiKey?: string;
   apiOrigin?: string;
+  directApiOrigin?: string;
   timeoutMs?: number;
   retries?: number;
   delayMs?: number;
@@ -107,7 +117,7 @@ interface PubFiResponse {
   text: string;
 }
 
-class PubFiHttpError extends Error {
+class SubscanHttpError extends Error {
   readonly httpStatus: number | undefined;
   readonly apiMessage: string | undefined;
   readonly transient: boolean;
@@ -121,7 +131,7 @@ class PubFiHttpError extends Error {
     } = {},
   ) {
     super(message);
-    this.name = 'PubFiHttpError';
+    this.name = 'SubscanHttpError';
     this.httpStatus = options.httpStatus;
     this.apiMessage = options.apiMessage;
     this.transient = options.transient ?? false;
@@ -184,7 +194,7 @@ function isTransientStatus(status: number): boolean {
 }
 
 function isTransientError(error: unknown): boolean {
-  if (error instanceof PubFiHttpError) return error.transient;
+  if (error instanceof SubscanHttpError) return error.transient;
   return /timeout|timed out|abort|fetch failed|network|econn|socket|connection|temporar/i.test(
     safeText(error),
   );
@@ -205,7 +215,7 @@ async function retryPubFi<T>(
       await sleep(RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS.at(-1)!);
     }
   }
-  throw lastError ?? new Error('PubFi request failed.');
+  throw lastError ?? new Error('Subscan request failed.');
 }
 
 class PubFiClient {
@@ -214,6 +224,7 @@ class PubFiClient {
     private readonly key: string | undefined,
     private readonly timeoutMs: number,
     private readonly fetchImpl: typeof fetch,
+    private readonly credentialHeader: 'authorization' | 'x-api-key',
   ) {}
 
   async request(
@@ -228,7 +239,10 @@ class PubFiClient {
     const headers = new Headers();
     if (options.body !== undefined) headers.set('content-type', 'application/json');
     if (options.authenticated !== false && this.key !== undefined) {
-      headers.set('authorization', `Bearer ${this.key}`);
+      headers.set(
+        this.credentialHeader,
+        this.credentialHeader === 'authorization' ? `Bearer ${this.key}` : this.key,
+      );
     }
     let response: Response;
     try {
@@ -240,13 +254,16 @@ class PubFiClient {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new PubFiHttpError(`PubFi request timed out for ${method} ${path}.`, {
+        throw new SubscanHttpError(`Subscan request timed out for ${method} ${path}.`, {
           transient: true,
         });
       }
-      throw new PubFiHttpError(`PubFi request failed for ${method} ${path}: ${safeText(error)}.`, {
-        transient: true,
-      });
+      throw new SubscanHttpError(
+        `Subscan request failed for ${method} ${path}: ${safeText(error)}.`,
+        {
+          transient: true,
+        },
+      );
     } finally {
       clearTimeout(timer);
     }
@@ -255,8 +272,8 @@ class PubFiClient {
     const json = parseJson(rawText);
     if (!response.ok) {
       const message = apiMessage(json, text);
-      throw new PubFiHttpError(
-        `PubFi HTTP ${response.status} for ${method} ${path}: ${message ?? 'no API message'}.`,
+      throw new SubscanHttpError(
+        `Subscan HTTP ${response.status} for ${method} ${path}: ${message ?? 'no API message'}.`,
         {
           httpStatus: response.status,
           ...(message === undefined ? {} : { apiMessage: message }),
@@ -265,7 +282,7 @@ class PubFiClient {
       );
     }
     if (json === undefined) {
-      throw new PubFiHttpError(`PubFi returned invalid JSON for ${method} ${path}.`, {
+      throw new SubscanHttpError(`Subscan returned invalid JSON for ${method} ${path}.`, {
         httpStatus: response.status,
         apiMessage: text,
       });
@@ -566,6 +583,7 @@ export async function discoverSubscanPubFiRoutes(
     options.pubfiKey,
     options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     options.fetchImpl ?? fetch,
+    'authorization',
   );
   const discovered = await discoverCapabilities(client, options.retries, options.sleep);
   const openapiResponse = await retryPubFi(
@@ -601,8 +619,29 @@ export async function discoverSubscanPubFiRoutes(
   };
 }
 
+function directSubscanRoutes(): SubscanProbeRoutes {
+  return {
+    header: {
+      ready: true,
+      matcherPath: DIRECT_HEADER_PATH,
+      concretePath: DIRECT_HEADER_PATH,
+      method: 'POST',
+      freeVariant: false,
+    },
+    etherscan: {
+      ready: true,
+      matcherPath: DIRECT_ETHERSCAN_PATH,
+      concretePath: DIRECT_ETHERSCAN_PATH,
+      method: 'GET',
+      freeVariant: false,
+    },
+    registryPages: 0,
+    openapiGeneration: 'direct-subscan',
+  };
+}
+
 function normalizeFailure(stage: string, error: unknown): SubscanProbeFailure {
-  if (error instanceof PubFiHttpError) {
+  if (error instanceof SubscanHttpError) {
     return {
       stage,
       ...(error.httpStatus === undefined ? {} : { httpStatus: error.httpStatus }),
@@ -613,12 +652,17 @@ function normalizeFailure(stage: string, error: unknown): SubscanProbeFailure {
   return { stage, detail: safeText(error) };
 }
 
-function initialReport(pubfiKeyPresent: boolean): SubscanFinalStateProbeReport {
+function initialReport(
+  access: SubscanProbeAccess,
+  credentialPresent: boolean,
+): SubscanFinalStateProbeReport {
   return {
     schemaVersion: 1,
+    access,
     blockNumber: SUBSCAN_FINAL_STATE_PROBE_BLOCK_NUMBER,
     xcdot: SUBSCAN_FINAL_STATE_PROBE_CONTRACT,
-    pubfiKeyPresent,
+    pubfiKeyPresent: access === 'pubfi' && credentialPresent,
+    subscanApiKeyPresent: access === 'direct-subscan' && credentialPresent,
     headerQuery: 'NOT_RUN',
     expectedStateRoot: SUBSCAN_FINAL_STATE_PROBE_STATE_ROOT,
     totalSupplyQuery: 'NOT_RUN',
@@ -637,10 +681,12 @@ function reportLine(key: string, value: string | number | boolean | undefined): 
 
 function reportText(report: SubscanFinalStateProbeReport): string {
   const lines = [
+    reportLine('ACCESS', report.access),
     reportLine('BLOCK_NUMBER', report.blockNumber),
     reportLine('XCDOT', report.xcdot),
     '',
     reportLine('PUBFI_KEY_PRESENT', report.pubfiKeyPresent),
+    reportLine('SUBSCAN_API_KEY_PRESENT', report.subscanApiKeyPresent),
     reportLine('PUBFI_HEADER_ROUTE_READY', report.pubfiHeaderRouteReady),
     reportLine('PUBFI_ETHERSCAN_ROUTE_READY', report.pubfiEtherscanRouteReady),
     '',
@@ -717,15 +763,17 @@ async function writeArtifacts(
   if (routes !== undefined) report.routes = routes;
   const text = reportText(report);
   const routeSection =
-    routes === undefined
-      ? 'Route discovery did not complete.\n'
-      : [
-          `Registry generation: ${routes.registryGeneration ?? 'not recorded'}`,
-          `Registry pages: ${routes.registryPages}`,
-          `Header route: ${routeDescription(routes.header)}`,
-          `Etherscan-like route: ${routeDescription(routes.etherscan)}`,
-          `Runtime OpenAPI version: ${routes.openapiGeneration ?? 'not recorded'}`,
-        ].join('\n') + '\n';
+    report.access === 'direct-subscan'
+      ? `Direct Subscan host: ${SUBSCAN_FINAL_STATE_PROBE_DIRECT_API_ORIGIN}\nPubFi route discovery: bypassed.\n`
+      : routes === undefined
+        ? 'Route discovery did not complete.\n'
+        : [
+            `Registry generation: ${routes.registryGeneration ?? 'not recorded'}`,
+            `Registry pages: ${routes.registryPages}`,
+            `Header route: ${routeDescription(routes.header)}`,
+            `Etherscan-like route: ${routeDescription(routes.etherscan)}`,
+            `Runtime OpenAPI version: ${routes.openapiGeneration ?? 'not recorded'}`,
+          ].join('\n') + '\n';
   const readme = [
     '# Subscan/PubFi final-state minimal probe',
     '',
@@ -736,7 +784,9 @@ async function writeArtifacts(
     '',
     routeSection.trimEnd(),
     '',
-    'The API key is loaded only from the process environment and is never written to these artifacts.',
+    report.access === 'direct-subscan'
+      ? 'The direct Subscan API key is loaded only from the process environment and is never written to these artifacts.'
+      : 'The PubFi API key is loaded only from the process environment and is never written to these artifacts.',
     '',
     text.trimEnd(),
     '',
@@ -842,6 +892,10 @@ function sampleErrorLine(address: string, failure: SubscanProbeFailure): string 
 export async function runSubscanFinalStateProbe(
   options: SubscanFinalStateProbeOptions,
 ): Promise<SubscanFinalStateProbeResult> {
+  const access = options.access ?? 'pubfi';
+  if (access !== 'pubfi' && access !== 'direct-subscan') {
+    throw probeInputError('Probe access must be pubfi or direct-subscan.', { access });
+  }
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const retries = options.retries ?? DEFAULT_RETRIES;
   const delayMs = options.delayMs ?? DEFAULT_DELAY_MS;
@@ -856,9 +910,12 @@ export async function runSubscanFinalStateProbe(
   }
   const outputDirectory = resolve(options.out ?? 'diagnostics/subscan-final-state-probe');
   await mkdir(outputDirectory, { recursive: true });
-  const pubfiKey = options.pubfiKey ?? process.env.PUBFI_KEY;
-  const keyPresent = typeof pubfiKey === 'string' && pubfiKey.length > 0;
-  const report = initialReport(keyPresent);
+  const credential =
+    access === 'pubfi'
+      ? (options.pubfiKey ?? process.env.PUBFI_KEY)
+      : (options.subscanApiKey ?? process.env.SUBSCAN_API_KEY);
+  const keyPresent = typeof credential === 'string' && credential.length > 0;
+  const report = initialReport(access, keyPresent);
   const sleep =
     options.sleep ??
     ((milliseconds: number) => new Promise<void>((done) => setTimeout(done, milliseconds)));
@@ -867,25 +924,42 @@ export async function runSubscanFinalStateProbe(
   let totalSupplyArtifact: unknown = { status: 'NOT_RUN' };
   const sampleLines: string[] = [];
   const client = new PubFiClient(
-    options.apiOrigin ?? SUBSCAN_FINAL_STATE_PROBE_API_ORIGIN,
-    pubfiKey,
+    access === 'pubfi'
+      ? (options.apiOrigin ?? SUBSCAN_FINAL_STATE_PROBE_API_ORIGIN)
+      : (options.directApiOrigin ?? SUBSCAN_FINAL_STATE_PROBE_DIRECT_API_ORIGIN),
+    credential,
     timeoutMs,
     options.fetchImpl ?? fetch,
+    access === 'pubfi' ? 'authorization' : 'x-api-key',
   );
-  try {
-    routes = await discoverSubscanPubFiRoutes({
-      ...(options.apiOrigin === undefined ? {} : { apiOrigin: options.apiOrigin }),
-      timeoutMs,
-      ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
-      ...(pubfiKey === undefined ? {} : { pubfiKey }),
-      retries,
-      sleep,
-    });
-    report.pubfiHeaderRouteReady = routes.header.ready;
-    report.pubfiEtherscanRouteReady = routes.etherscan.ready;
-    if (!routes.header.ready || !routes.etherscan.ready) {
+  if (access === 'pubfi') {
+    try {
+      routes = await discoverSubscanPubFiRoutes({
+        ...(options.apiOrigin === undefined ? {} : { apiOrigin: options.apiOrigin }),
+        timeoutMs,
+        ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
+        ...(credential === undefined ? {} : { pubfiKey: credential }),
+        retries,
+        sleep,
+      });
+      report.pubfiHeaderRouteReady = routes.header.ready;
+      report.pubfiEtherscanRouteReady = routes.etherscan.ready;
+      if (!routes.header.ready || !routes.etherscan.ready) {
+        report.status = 'PUBFI_ROUTE_UNAVAILABLE';
+        report.error = readRouteError(routes);
+        const reportTextValue = await writeArtifacts(
+          outputDirectory,
+          report,
+          routes,
+          headerArtifact,
+          totalSupplyArtifact,
+          sampleLines,
+        );
+        return { outputDirectory, report, reportText: reportTextValue };
+      }
+    } catch (error) {
       report.status = 'PUBFI_ROUTE_UNAVAILABLE';
-      report.error = readRouteError(routes);
+      report.error = normalizeFailure('route-discovery', error);
       const reportTextValue = await writeArtifacts(
         outputDirectory,
         report,
@@ -896,24 +970,17 @@ export async function runSubscanFinalStateProbe(
       );
       return { outputDirectory, report, reportText: reportTextValue };
     }
-  } catch (error) {
-    report.status = 'PUBFI_ROUTE_UNAVAILABLE';
-    report.error = normalizeFailure('route-discovery', error);
-    const reportTextValue = await writeArtifacts(
-      outputDirectory,
-      report,
-      routes,
-      headerArtifact,
-      totalSupplyArtifact,
-      sampleLines,
-    );
-    return { outputDirectory, report, reportText: reportTextValue };
+  } else {
+    routes = directSubscanRoutes();
   }
   if (!keyPresent) {
-    report.status = 'PUBFI_KEY_MISSING';
+    report.status = access === 'pubfi' ? 'PUBFI_KEY_MISSING' : 'SUBSCAN_API_KEY_MISSING';
     report.error = {
       stage: 'credentials',
-      detail: 'PUBFI_KEY is not present in the process environment.',
+      detail:
+        access === 'pubfi'
+          ? 'PUBFI_KEY is not present in the process environment.'
+          : 'SUBSCAN_API_KEY is not present in the process environment.',
     };
     const reportTextValue = await writeArtifacts(
       outputDirectory,

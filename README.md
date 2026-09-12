@@ -47,6 +47,7 @@ xcdot-recovery verify-subscan-final-state --dataset snapshots/subscan/derived --
 xcdot-recovery diagnose-rank565 --dataset snapshots/subscan --evm-rpc <moonbeam-evm-rpc> --block-number 16796696 --from-block <justified-start>
 xcdot-recovery reconstruct-final-state --dataset snapshots/subscan --evm-rpc <moonbeam-evm-rpc> --block-number 16796696 --expected-total-supply 2334516727484230 --resume
 xcdot-recovery probe-subscan-final-state --dataset snapshots/final-state/moonbeam-16796696 --out diagnostics/subscan-final-state-probe
+xcdot-recovery probe-subscan-final-state --access direct-subscan --dataset snapshots/final-state/moonbeam-16796696 --out diagnostics/subscan-final-state-probe-direct
 xcdot-recovery inspect-evm-storage-layout --substrate-rpc <moonbeam-substrate-rpc> --block-hash <hash> --layout <verified-layout.json>
 xcdot-recovery extract-final-state-storage --substrate-rpc <moonbeam-substrate-rpc> --block-hash <hash> --dataset snapshots/subscan --layout <verified-layout.json>
 xcdot-recovery probe-substrate-archive --rpc <moonbeam-substrate-rpc> --block-hash 0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f

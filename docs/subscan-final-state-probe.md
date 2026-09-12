@@ -32,6 +32,25 @@ node dist/cli/index.js probe-subscan-final-state \
   --out diagnostics/subscan-final-state-probe
 ```
 
+When PubFi discovery is unavailable and a separate paid Subscan key is available, bypass PubFi
+without changing the checks:
+
+```bash
+set -a
+source /path/to/direct-subscan.key
+set +a
+test -n "$SUBSCAN_API_KEY"
+
+node dist/cli/index.js probe-subscan-final-state \
+  --access direct-subscan \
+  --dataset snapshots/final-state/moonbeam-16796696 \
+  --out diagnostics/subscan-final-state-probe-direct
+```
+
+Direct mode calls `https://moonbeam.api.subscan.io` with `X-API-Key: $SUBSCAN_API_KEY`. The
+PubFi key and direct Subscan key are separate credentials; the command never accepts either key
+as a CLI argument.
+
 The client discovers the current Subscan capabilities from PubFi's public Registry and Runtime
 OpenAPI, prefers the published Moonbeam template route, and uses the published free variant when
 the contract exposes one. Gateway calls use `Authorization: Bearer $PUBFI_KEY`; Registry and
@@ -53,6 +72,9 @@ candidate set. `PUBFI_ROUTE_UNAVAILABLE` means route discovery was unavailable o
 `SUBSCAN_BALANCE_HISTORY_UNAVAILABLE` means the header and supply passed but at least one of the
 five balance responses was unavailable or invalid.
 
+`SUBSCAN_API_KEY_MISSING` means direct mode was selected without the separate direct key; it is a
+credential setup result, not evidence about Subscan historical data.
+
 The five artifacts are written only below `diagnostics/subscan-final-state-probe/`:
 
 ```text
@@ -62,3 +84,6 @@ total-supply.json
 sample-balances.ndjson
 report.txt
 ```
+
+The separation between PubFi credentials and direct Subscan credentials follows Subscan's current
+access documentation: <https://support.subscan.io/doc-360177>.
