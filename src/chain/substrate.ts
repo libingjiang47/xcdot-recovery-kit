@@ -20,7 +20,7 @@ export async function connectSubstrate(rpc: string): Promise<ApiPromise> {
   if (!rpc) throw new RpcUnavailableError('An RPC endpoint is required.');
   try {
     const provider = /^wss?:\/\//i.test(rpc) ? new WsProvider(rpc) : new HttpProvider(rpc);
-    return await ApiPromise.create({ provider: provider as any });
+    return await ApiPromise.create({ provider: provider as any, throwOnConnect: true });
   } catch (error) {
     throw new RpcUnavailableError(`Could not connect to Substrate RPC: ${String(error)}`, { rpc });
   }
