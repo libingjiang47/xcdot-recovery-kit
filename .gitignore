@@ -2,6 +2,8 @@ node_modules/
 dist/
 coverage/
 target/
+snapshots/subscan/work/
+snapshots/subscan/*.csv:Zone.Identifier
 .tmp-snapshot-*/
 .tmp-evidence-*/
 .work-*/

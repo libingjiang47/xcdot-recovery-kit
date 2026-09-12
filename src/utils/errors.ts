@@ -133,6 +133,104 @@ export class EvidenceVerificationError extends XcDotError {
   }
 }
 
+export class SubscanFileCountMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_FILE_COUNT_MISMATCH', message, details);
+    this.name = 'SubscanFileCountMismatchError';
+  }
+}
+
+export class SubscanSchemaUnsupportedError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_SCHEMA_UNSUPPORTED', message, details);
+    this.name = 'SubscanSchemaUnsupportedError';
+  }
+}
+
+export class SubscanSchemaMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_SCHEMA_MISMATCH', message, details);
+    this.name = 'SubscanSchemaMismatchError';
+  }
+}
+
+export class SubscanInvalidAddressError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_INVALID_ADDRESS', message, details);
+    this.name = 'SubscanInvalidAddressError';
+  }
+}
+
+export class SubscanInvalidBalanceError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_INVALID_BALANCE', message, details);
+    this.name = 'SubscanInvalidBalanceError';
+  }
+}
+
+export class SubscanBalancePrecisionError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_BALANCE_PRECISION', message, details);
+    this.name = 'SubscanBalancePrecisionError';
+  }
+}
+
+export class SubscanDuplicateFileError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_DUPLICATE_FILE', message, details);
+    this.name = 'SubscanDuplicateFileError';
+  }
+}
+
+export class SubscanSemanticDuplicatePageError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_SEMANTIC_DUPLICATE_PAGE', message, details);
+    this.name = 'SubscanSemanticDuplicatePageError';
+  }
+}
+
+export class SubscanDuplicateBalanceConflictError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_DUPLICATE_BALANCE_CONFLICT', message, details);
+    this.name = 'SubscanDuplicateBalanceConflictError';
+  }
+}
+
+export class SubscanImportIntegrityError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_IMPORT_INTEGRITY', message, details);
+    this.name = 'SubscanImportIntegrityError';
+  }
+}
+
+export class SubscanFinalStateVerificationError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_FINAL_STATE_VERIFICATION', message, details);
+    this.name = 'SubscanFinalStateVerificationError';
+  }
+}
+
+export class FinalStateResumeContextMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_RESUME_CONTEXT_MISMATCH', message, details);
+    this.name = 'FinalStateResumeContextMismatchError';
+  }
+}
+
+export class FinalStateSupplyShortfallError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_SUPPLY_SHORTFALL', message, details);
+    this.name = 'FinalStateSupplyShortfallError';
+  }
+}
+
+export class FinalStateSupplyOverflowError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_SUPPLY_OVERFLOW', message, details);
+    this.name = 'FinalStateSupplyOverflowError';
+  }
+}
+
 export function asXcDotError(error: unknown): XcDotError {
   if (error instanceof XcDotError) return error;
   const message = error instanceof Error ? error.message : String(error);

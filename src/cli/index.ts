@@ -11,13 +11,15 @@ import { evmCheckCommand } from './evm-check.js';
 import { captureEvidenceCommand } from './capture-evidence.js';
 import { verifyEvidenceCommand } from './verify-evidence.js';
 import { anchorRelayCommand } from './anchor-relay.js';
+import { importSubscanCommand } from './import-subscan.js';
+import { verifySubscanFinalStateCommand } from './verify-subscan-final-state.js';
 
 export function createProgram(): Command {
   const program = new Command();
   program
     .name('xcdot-recovery')
     .description('Deterministic xcDOT state extraction and verification toolkit')
-    .version('0.2.0')
+    .version('0.25.0')
     .showSuggestionAfterError();
   program.addCommand(probeCommand());
   program.addCommand(inspectCommand());
@@ -28,6 +30,8 @@ export function createProgram(): Command {
   program.addCommand(captureEvidenceCommand());
   program.addCommand(verifyEvidenceCommand());
   program.addCommand(anchorRelayCommand());
+  program.addCommand(importSubscanCommand());
+  program.addCommand(verifySubscanFinalStateCommand());
   return program;
 }
 
