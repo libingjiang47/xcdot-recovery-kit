@@ -17,6 +17,8 @@ import { diagnoseRank565Command } from './diagnose-rank565.js';
 import { reconstructFinalStateCommand } from './reconstruct-final-state.js';
 import { inspectEvmStorageLayoutCommand } from './inspect-evm-storage-layout.js';
 import { extractFinalStateStorageCommand } from './extract-final-state-storage.js';
+import { probeSubstrateArchiveCommand } from './probe-substrate-archive.js';
+import { probeSubstrateArchiveMatrixCommand } from './probe-substrate-archive-matrix.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -40,6 +42,8 @@ export function createProgram(): Command {
   program.addCommand(reconstructFinalStateCommand());
   program.addCommand(inspectEvmStorageLayoutCommand());
   program.addCommand(extractFinalStateStorageCommand());
+  program.addCommand(probeSubstrateArchiveCommand());
+  program.addCommand(probeSubstrateArchiveMatrixCommand());
   return program;
 }
 

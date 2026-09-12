@@ -280,6 +280,13 @@ export class FinalStateSupplyOverflowError extends XcDotError {
   }
 }
 
+export class SubstrateArchiveProbeInputError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSTRATE_ARCHIVE_PROBE_INPUT', message, details);
+    this.name = 'SubstrateArchiveProbeInputError';
+  }
+}
+
 export class Rank565DiagnosticError extends XcDotError {
   constructor(message: string, details: Record<string, string | number | boolean> = {}) {
     super('RANK565_DIAGNOSTIC_FAILED', message, details);

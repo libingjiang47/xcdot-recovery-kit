@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "blockHash": "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f",
+  "blockNumber": "16796696",
+  "expectedStateRoot": "0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb",
+  "expectedSpecVersion": 4401,
+  "expectedStateVersion": 1,
+  "providers": [
+    {
+      "name": "onfinality",
+      "classification": "UNREACHABLE",
+      "errorCode": "TIMEOUT"
+    },
+    {
+      "name": "foundation",
+      "classification": "UNREACHABLE",
+      "errorCode": "TIMEOUT"
+    },
+    {
+      "name": "unitedbloc",
+      "classification": "UNREACHABLE",
+      "errorCode": "TIMEOUT"
+    },
+    {
+      "name": "1rpc",
+      "classification": "NO_KNOWN_SUBSTRATE_ENDPOINT",
+      "errorCode": "NO_KNOWN_SUBSTRATE_ENDPOINT"
+    },
+    {
+      "name": "dwellir",
+      "classification": "NO_KNOWN_SUBSTRATE_ENDPOINT",
+      "errorCode": "NO_KNOWN_SUBSTRATE_ENDPOINT"
+    },
+    {
+      "name": "drpc",
+      "classification": "NO_KNOWN_SUBSTRATE_ENDPOINT",
+      "errorCode": "NO_KNOWN_SUBSTRATE_ENDPOINT"
+    },
+    {
+      "name": "publicnode",
+      "classification": "NO_KNOWN_SUBSTRATE_ENDPOINT",
+      "errorCode": "NO_KNOWN_SUBSTRATE_ENDPOINT"
+    }
+  ],
+  "summary": {
+    "historicalStorageProviders": 0,
+    "historicalProofProviders": 0,
+    "canReconstructFinalState": false,
+    "canGenerateProofs": false,
+    "archiveCapabilityAvailable": false
+  }
+}

@@ -17,6 +17,8 @@ struct Args {
     bundle: PathBuf,
     #[arg(long, help = "Verify a v0.26 final-state Substrate storage artifact")]
     final_state: bool,
+    #[arg(long, help = "Verify a single pinned state_getReadProof archive probe")]
+    archive_probe: bool,
 }
 
 fn read(path: &Path) -> Result<Vec<u8>> {
@@ -234,6 +236,66 @@ fn verify_proof_items(
             .map_err(|error| anyhow::anyhow!("state trie V1 proof verification failed: {error:?}")),
         other => bail!("unsupported Substrate state version {other}"),
     }
+}
+
+const ARCHIVE_PROBE_BLOCK_HASH: &str =
+    "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f";
+const ARCHIVE_PROBE_STATE_ROOT: &str =
+    "0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb";
+
+fn verify_archive_probe_payload(probe: &Value) -> Result<()> {
+    if field(probe, "schemaVersion")?.as_u64() != Some(1) {
+        bail!("unsupported archive probe schema")
+    }
+    let root_bytes = hex_bytes(
+        &string_field(probe, "stateRoot")?,
+        "archive probe state root",
+    )?;
+    if root_bytes.len() != 32 {
+        bail!("archive probe state root is not 32 bytes")
+    }
+    let root = H256::from_slice(&root_bytes);
+    let state_version = u64_field(probe, "stateVersion")?;
+    let key_text = string_field(probe, "key")?;
+    let key = hex_bytes(&key_text, "archive probe key")?;
+    let value = hex_bytes(
+        &string_field(probe, "value")?,
+        "archive probe storage value",
+    )?;
+    if value.is_empty() {
+        bail!("archive probe storage value is empty")
+    }
+    let proof_values = field(probe, "proof")?
+        .as_array()
+        .context("archive probe proof is not an array")?;
+    if proof_values.is_empty() {
+        bail!("archive probe proof is empty")
+    }
+    let proof = proof_values
+        .iter()
+        .map(|node| {
+            hex_bytes(
+                node.as_str()
+                    .context("archive probe proof node is not a string")?,
+                "archive probe proof node",
+            )
+        })
+        .collect::<Result<Vec<_>>>()?;
+    verify_proof_items(state_version, root, &proof, &[(key, Some(value))])
+}
+
+fn verify_archive_probe(bundle: &Path) -> Result<()> {
+    let probe = json(&bundle.join("archive-probe.json"))?;
+    if string_field(&probe, "blockHash")?.to_ascii_lowercase() != ARCHIVE_PROBE_BLOCK_HASH
+        || string_field(&probe, "stateRoot")?.to_ascii_lowercase() != ARCHIVE_PROBE_STATE_ROOT
+        || u64_field(&probe, "stateVersion")? != 1
+        || string_field(&probe, "key")?.to_ascii_lowercase() != "0x3a636f6465"
+    {
+        bail!("archive probe is not for the pinned Moonbeam state")
+    }
+    verify_archive_probe_payload(&probe)?;
+    println!("ARCHIVE_PROOF_OFFLINE_VERIFY=PASS");
+    Ok(())
 }
 
 fn raw_storage_records(bundle: &Path) -> Result<Vec<Value>> {
@@ -866,7 +928,12 @@ fn run(args: Args) -> Result<()> {
 
 fn main() {
     let args = Args::parse();
-    let result = if args.final_state {
+    let result = if args.archive_probe {
+        match fs::canonicalize(&args.bundle) {
+            Ok(bundle) => verify_archive_probe(&bundle),
+            Err(error) => Err(anyhow::anyhow!("resolve archive probe artifact: {error}")),
+        }
+    } else if args.final_state {
         match fs::canonicalize(&args.bundle) {
             Ok(bundle) => verify_final_state_storage(&bundle),
             Err(error) => Err(anyhow::anyhow!("resolve final-state artifact: {error}")),
@@ -916,6 +983,28 @@ mod tests {
             (b"b".to_vec(), Some(b"two".to_vec())),
         ];
         verify_proof_items(1, root, &proof, &items).unwrap();
+        let archive_keys = [b"a".to_vec()];
+        let archive_proof =
+            generate_trie_proof::<Layout, _, _, _>(&db, root, archive_keys.iter()).unwrap();
+        let archive_probe = serde_json::json!({
+            "schemaVersion": 1,
+            "blockHash": "0x11",
+            "stateRoot": format!("0x{}", hex::encode(root.as_bytes())),
+            "stateVersion": 1,
+            "key": "0x61",
+            "value": "0x6f6e65",
+            "proof": archive_proof
+                .iter()
+                .map(|node| format!("0x{}", hex::encode(node)))
+                .collect::<Vec<_>>(),
+        });
+        verify_archive_probe_payload(&archive_probe).unwrap();
+        let mut archive_probe_wrong_value = archive_probe.clone();
+        archive_probe_wrong_value["value"] = serde_json::Value::String("0x626164".to_owned());
+        assert!(verify_archive_probe_payload(&archive_probe_wrong_value).is_err());
+        let mut archive_probe_wrong_node = archive_probe.clone();
+        archive_probe_wrong_node["proof"][0] = serde_json::Value::String("0x00".to_owned());
+        assert!(verify_archive_probe_payload(&archive_probe_wrong_node).is_err());
         let mut wrong = items.clone();
         wrong[0].1 = Some(b"bad".to_vec());
         assert!(verify_proof_items(1, root, &proof, &wrong).is_err());
