@@ -5,6 +5,8 @@ target/
 snapshots/subscan/work/
 snapshots/subscan/*.csv:Zone.Identifier
 diagnostics/*/work/
+work/final-state/
+snapshots/final-state/
 .tmp-snapshot-*/
 .tmp-evidence-*/
 .work-*/

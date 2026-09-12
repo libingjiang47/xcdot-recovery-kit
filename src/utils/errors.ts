@@ -217,6 +217,55 @@ export class FinalStateResumeContextMismatchError extends XcDotError {
   }
 }
 
+export class FinalStateBalanceConflictError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_BALANCE_CONFLICT', message, details);
+    this.name = 'FinalStateBalanceConflictError';
+  }
+}
+
+export class FinalStateDiscoveryPartialError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_DISCOVERY_PARTIAL', message, details);
+    this.name = 'FinalStateDiscoveryPartialError';
+  }
+}
+
+export class FinalStateSupplyChangedError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_SUPPLY_CHANGED', message, details);
+    this.name = 'FinalStateSupplyChangedError';
+  }
+}
+
+export class FinalStateIdentityMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_IDENTITY_MISMATCH', message, details);
+    this.name = 'FinalStateIdentityMismatchError';
+  }
+}
+
+export class FinalStateOutputExistsError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_OUTPUT_EXISTS', message, details);
+    this.name = 'FinalStateOutputExistsError';
+  }
+}
+
+export class FinalStateStorageLayoutError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('EVM_STORAGE_LAYOUT_MISMATCH', message, details);
+    this.name = 'FinalStateStorageLayoutError';
+  }
+}
+
+export class FinalStateStorageBackendUnsupportedError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('EVM_STORAGE_BACKEND_UNSUPPORTED', message, details);
+    this.name = 'FinalStateStorageBackendUnsupportedError';
+  }
+}
+
 export class FinalStateSupplyShortfallError extends XcDotError {
   constructor(message: string, details: Record<string, string | number | boolean> = {}) {
     super('FINAL_STATE_SUPPLY_SHORTFALL', message, details);

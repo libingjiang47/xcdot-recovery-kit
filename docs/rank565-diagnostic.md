@@ -31,6 +31,10 @@ The command performs the phases in order:
 7. accept a recovery only when exactly one address has the missing balance and supply equality
    closes exactly.
 
+The older diagnostic's Subscan-total comparison is retained for historical investigation only. It
+is not a gate for v0.26 final-state reconstruction. See the [arithmetic erratum](rank565-arithmetic-erratum.md)
+for the corrected Rank-565-adjusted diagnostic total.
+
 `--from-block` is intentionally required before the multi-million-block scan. It prevents a
 transient RPC failure during D0–D5 from silently starting a scan from block zero. The scan begins
 with 10,000-block ranges, halves a rejected range, persists every successful range, and supports

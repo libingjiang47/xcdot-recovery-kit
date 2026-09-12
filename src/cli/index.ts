@@ -14,13 +14,16 @@ import { anchorRelayCommand } from './anchor-relay.js';
 import { importSubscanCommand } from './import-subscan.js';
 import { verifySubscanFinalStateCommand } from './verify-subscan-final-state.js';
 import { diagnoseRank565Command } from './diagnose-rank565.js';
+import { reconstructFinalStateCommand } from './reconstruct-final-state.js';
+import { inspectEvmStorageLayoutCommand } from './inspect-evm-storage-layout.js';
+import { extractFinalStateStorageCommand } from './extract-final-state-storage.js';
 
 export function createProgram(): Command {
   const program = new Command();
   program
     .name('xcdot-recovery')
     .description('Deterministic xcDOT state extraction and verification toolkit')
-    .version('0.25.0')
+    .version('0.26.0')
     .showSuggestionAfterError();
   program.addCommand(probeCommand());
   program.addCommand(inspectCommand());
@@ -34,6 +37,9 @@ export function createProgram(): Command {
   program.addCommand(importSubscanCommand());
   program.addCommand(verifySubscanFinalStateCommand());
   program.addCommand(diagnoseRank565Command());
+  program.addCommand(reconstructFinalStateCommand());
+  program.addCommand(inspectEvmStorageLayoutCommand());
+  program.addCommand(extractFinalStateStorageCommand());
   return program;
 }
 

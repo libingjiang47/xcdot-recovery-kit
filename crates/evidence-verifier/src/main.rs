@@ -15,6 +15,8 @@ use std::path::{Path, PathBuf};
 )]
 struct Args {
     bundle: PathBuf,
+    #[arg(long, help = "Verify a v0.26 final-state Substrate storage artifact")]
+    final_state: bool,
 }
 
 fn read(path: &Path) -> Result<Vec<u8>> {
@@ -591,6 +593,201 @@ fn verify_proofs(bundle: &Path, manifest: &Value, records: &[Value]) -> Result<(
     Ok(())
 }
 
+fn optional_raw_value(record: &Value) -> Result<Option<Vec<u8>>> {
+    match record.get("rawValue") {
+        Some(Value::Null) | None => Ok(None),
+        Some(Value::String(value)) => Ok(Some(hex_bytes(value, "raw storage value")?)),
+        Some(_) => bail!("rawValue is not a hex string or null"),
+    }
+}
+
+fn raw_word_u128(bytes: &[u8], label: &str) -> Result<u128> {
+    if bytes.len() != 32 {
+        bail!("{label} is not exactly one 32-byte storage word")
+    }
+    if bytes[..16].iter().any(|byte| *byte != 0) {
+        bail!("{label} does not fit in the verifier's u128 reporting range")
+    }
+    Ok(u128::from_be_bytes(
+        bytes[16..].try_into().expect("slice length checked"),
+    ))
+}
+
+fn verify_final_state_storage(bundle: &Path) -> Result<()> {
+    verify_file_sums(bundle)?;
+    let summary = json(&bundle.join("substrate-storage/summary.json"))?;
+    if string_field(&summary, "status")? != "PROOF_READY" {
+        bail!("final-state storage summary is not PROOF_READY")
+    }
+    let root = H256::from_slice(&hex_bytes(
+        &string_field(&summary, "chain.substrateStateRoot")?,
+        "final-state state root",
+    )?);
+    let block_hash = string_field(&summary, "chain.substrateBlockHash")?;
+    let state_version = u64_field(&summary, "chain.stateVersion")?;
+    let expected_supply_text = string_field(&summary, "asset.totalSupplyPlanck")?;
+    let expected_supply: u128 = expected_supply_text
+        .parse()
+        .context("final-state total supply is outside the verifier's u128 range")?;
+
+    let storage_text = read_text(&bundle.join("substrate-storage/storage.ndjson"))?;
+    if !storage_text.ends_with('\n') {
+        bail!("final-state storage.ndjson must end with LF")
+    }
+    let mut expected: BTreeMap<String, Option<Vec<u8>>> = BTreeMap::new();
+    let mut balance_sum = 0u128;
+    let mut total_records = 0usize;
+    let mut balance_records = 0usize;
+    let mut total_raw: Option<Vec<u8>> = None;
+    for line in storage_text.lines() {
+        if line.is_empty() {
+            bail!("final-state storage.ndjson contains a blank line")
+        }
+        let record: Value = serde_json::from_str(line).context("parse final-state storage line")?;
+        let key = record_string(&record, "substrateStorageKey")?;
+        let raw = optional_raw_value(&record)?;
+        if expected.insert(key, raw.clone()).is_some() {
+            bail!("final-state storage contains a duplicate Substrate key")
+        }
+        match record.get("kind").and_then(Value::as_str) {
+            Some("totalSupply") => {
+                total_records += 1;
+                total_raw = raw;
+                let value_text = record_string(&record, "totalSupplyPlanck")?;
+                let value: u128 = value_text
+                    .parse()
+                    .context("totalSupplyPlanck is not u128")?;
+                if value != expected_supply {
+                    bail!("totalSupply record differs from summary")
+                }
+            }
+            Some(_) => {
+                balance_records += 1;
+                let value_text = record_string(&record, "balancePlanck")?;
+                let value: u128 = value_text.parse().context("balancePlanck is not u128")?;
+                balance_sum = balance_sum
+                    .checked_add(value)
+                    .context("final-state balance sum overflow")?;
+                if raw.is_none() && value != 0 {
+                    bail!("missing storage value has a non-zero balance")
+                }
+                if let Some(raw_value) = raw.as_ref() {
+                    if raw_word_u128(raw_value, "balance storage value")? != value {
+                        bail!("decoded raw balance differs from balancePlanck")
+                    }
+                }
+            }
+            None => bail!("final-state storage record has no kind"),
+        }
+    }
+    if total_records != 1 {
+        bail!("final-state storage must contain exactly one totalSupply record")
+    }
+    if balance_sum != expected_supply {
+        bail!("final-state balance sum does not equal totalSupply")
+    }
+    if let Some(raw) = total_raw.as_ref() {
+        if raw_word_u128(raw, "totalSupply storage value")? != expected_supply {
+            bail!("decoded raw totalSupply differs from summary")
+        }
+    } else {
+        bail!("totalSupply storage value is missing")
+    }
+    if balance_records != u64_field(&summary, "storage.queried")? as usize + 1 {
+        // storage.ndjson includes the zero-address sanity record in addition to candidates.
+        bail!("final-state storage record count does not match summary")
+    }
+
+    let proof_dir = bundle.join("proofs");
+    let index_text = read_text(&proof_dir.join("index.ndjson"))?;
+    let expected_batches = u64_field(&summary, "proofs.batchCount")? as usize;
+    let mut seen = BTreeSet::new();
+    let mut previous_batch: Option<u64> = None;
+    let mut previous_key: Option<String> = None;
+    let mut batch_count = 0usize;
+    for line in index_text.lines() {
+        let index: Value = serde_json::from_str(line).context("parse final-state proof index")?;
+        let batch_index = index
+            .get("batch")
+            .and_then(Value::as_u64)
+            .context("final-state proof batch is not an integer")?;
+        if previous_batch.is_some_and(|previous| batch_index != previous + 1) {
+            bail!("final-state proof batches are not contiguous")
+        }
+        previous_batch = Some(batch_index);
+        batch_count += 1;
+        let file = record_string(&index, "file")?;
+        let batch_raw = read(&proof_dir.join(&file))?;
+        if sha256_hex(&batch_raw) != record_string(&index, "sha256")? {
+            bail!("final-state proof batch hash mismatch")
+        }
+        let batch: Value =
+            serde_json::from_slice(&batch_raw).context("parse final-state proof batch")?;
+        if string_field(&batch, "blockHash")? != block_hash
+            || string_field(&batch, "stateRoot")?
+                != string_field(&summary, "chain.substrateStateRoot")?
+        {
+            bail!("final-state proof batch belongs to a different pinned state")
+        }
+        let keys = batch
+            .get("keys")
+            .and_then(Value::as_array)
+            .context("final-state proof keys are not an array")?;
+        if keys.len()
+            != index
+                .get("keyCount")
+                .and_then(Value::as_u64)
+                .unwrap_or(u64::MAX) as usize
+        {
+            bail!("final-state proof key count mismatch")
+        }
+        let proof_nodes = batch
+            .get("proof")
+            .and_then(Value::as_array)
+            .context("final-state proof nodes are not an array")?
+            .iter()
+            .map(|node| {
+                hex_bytes(
+                    node.as_str()
+                        .context("final-state proof node is not a string")?,
+                    "proof node",
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut items = Vec::new();
+        for key_value in keys {
+            let key = key_value
+                .as_str()
+                .context("final-state proof key is not a string")?
+                .to_owned();
+            if !seen.insert(key.clone()) {
+                bail!("final-state proof key occurs more than once")
+            }
+            if previous_key
+                .as_ref()
+                .is_some_and(|previous| previous >= &key)
+            {
+                bail!("final-state proof keys are not globally sorted")
+            }
+            previous_key = Some(key.clone());
+            let raw_key = hex_bytes(&key, "final-state proof key")?;
+            let value = expected
+                .get(&key)
+                .cloned()
+                .with_context(|| format!("final-state proof key {key} has no storage record"))?;
+            items.push((raw_key, value));
+        }
+        verify_proof_items(state_version, root, &proof_nodes, &items)?;
+    }
+    if batch_count != expected_batches || seen != expected.keys().cloned().collect() {
+        bail!("final-state proof coverage does not match storage records")
+    }
+    println!("FINAL_STATE_PROOFS=PASS");
+    println!("FINAL_STATE_COMPLETENESS=PASS");
+    println!("FINAL_STATE_OFFLINE_VERIFICATION=PASS");
+    Ok(())
+}
+
 fn run(args: Args) -> Result<()> {
     let bundle = fs::canonicalize(&args.bundle).context("resolve evidence bundle")?;
     let manifest = json(&bundle.join("evidence-manifest.json"))?;
@@ -668,7 +865,16 @@ fn run(args: Args) -> Result<()> {
 }
 
 fn main() {
-    if let Err(error) = run(Args::parse()) {
+    let args = Args::parse();
+    let result = if args.final_state {
+        match fs::canonicalize(&args.bundle) {
+            Ok(bundle) => verify_final_state_storage(&bundle),
+            Err(error) => Err(anyhow::anyhow!("resolve final-state artifact: {error}")),
+        }
+    } else {
+        run(args)
+    };
+    if let Err(error) = result {
         eprintln!("EVIDENCE_VERIFIED=FAIL: {error:#}");
         std::process::exit(1);
     }
