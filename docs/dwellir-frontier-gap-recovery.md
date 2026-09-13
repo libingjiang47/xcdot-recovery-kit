@@ -5,10 +5,10 @@ Frontier log range that SQD did not cover, from the pinned final block backwards
 It is separate from `recover-sqd-backward` and does not continue past the
 configured gap.
 
-Before requesting logs, it verifies Dwellir's Frontier sync range, the Moonbeam
-genesis hash, the indexed head height, and the pinned EVM block hash. A shallow
-Frontier index stops with `DWELLIR_FRONTIER_INDEX_TOO_SHALLOW` and issues no
-`eth_getLogs` request.
+The log provider is independent from the state provider. Before requesting logs,
+the configured EVM log endpoint verifies the pinned final EVM block number and
+hash. Dwellir is used only for pinned Substrate state reads and read-proof
+capture; its optional Frontier sync-range methods are not a log-provider gate.
 
 Transfer participants are candidate addresses only. Their authoritative final
 balances are read from Moonbeam's `pallet_evm::AccountStorages` at the pinned
@@ -28,6 +28,7 @@ node dist/cli/index.js recover-dwellir-gap \
   --gap-start 16669569 \
   --gap-end 16796696 \
   --log-window-blocks 1000 \
+  --log-endpoint https://moonbeam.api.onfinality.io/public \
   --connect-timeout-ms 120000 \
   --timeout-ms 300000 \
   --storage-concurrency 2 \

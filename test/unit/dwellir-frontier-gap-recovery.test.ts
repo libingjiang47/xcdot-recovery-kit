@@ -2,8 +2,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { XC_DOT_XC20_ADDRESS, MOONBEAM_GENESIS_HASH } from '../../src/asset/constants.js';
+import { XC_DOT_XC20_ADDRESS } from '../../src/asset/constants.js';
 import {
+  MOONBEAM_FINAL_BLOCK_NUMBER,
   MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
   MOONBEAM_FINAL_SUBSTRATE_STATE_ROOT,
   MOONBEAM_OBSERVED_EVM_BLOCK_HASH,
@@ -23,8 +24,6 @@ const ADDRESS_C = '0xcccccccccccccccccccccccccccccccccccccccc';
 const ADDRESS_D = '0xdddddddddddddddddddddddddddddddddddddddd';
 const ADDRESS_E = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const ADDRESS_F = '0xffffffffffffffffffffffffffffffffffffffff';
-const INDEXED_HEAD_HASH = `0x${'11'.repeat(32)}`;
-
 function quantity(value: number): string {
   return `0x${value.toString(16)}`;
 }
@@ -71,7 +70,7 @@ class FakeDwellir implements DwellirRpcTransport {
   constructor(
     private readonly options: {
       finalBlock: number;
-      indexedHead?: number;
+      finalBlockHash?: string;
       logs?: (fromBlock: number, toBlock: number) => unknown[];
       balances?: ReadonlyMap<string, string | null>;
       failProofFor?: string;
@@ -81,14 +80,11 @@ class FakeDwellir implements DwellirRpcTransport {
 
   async call(method: string, params: readonly unknown[]): Promise<unknown> {
     this.calls.push({ method, params });
-    if (method === 'moon_getEthSyncBlockRange') {
-      return [MOONBEAM_GENESIS_HASH, INDEXED_HEAD_HASH];
-    }
-    if (method === 'chain_getHeader') {
-      return { number: quantity(this.options.indexedHead ?? this.options.finalBlock) };
-    }
     if (method === 'eth_getBlockByNumber') {
-      return { number: quantity(this.options.finalBlock), hash: MOONBEAM_OBSERVED_EVM_BLOCK_HASH };
+      return {
+        number: quantity(this.options.finalBlock),
+        hash: this.options.finalBlockHash ?? MOONBEAM_OBSERVED_EVM_BLOCK_HASH,
+      };
     }
     if (method === 'eth_getLogs') {
       const filter = params[0] as { fromBlock: string; toBlock: string };
@@ -145,21 +141,21 @@ function options(
 }
 
 describe('Dwellir Frontier coverage-gap recovery', () => {
-  it('resolves the sync range and validates the Frontier genesis', async () => {
+  it('validates the independent log provider final block', async () => {
     const root = await mkdtemp(join(tmpdir(), 'xcdot-frontier-gap-sync-'));
     try {
       const base = baseFixture([[ADDRESS_A, 10n]]);
-      const transport = new FakeDwellir({ finalBlock: 2_500 });
+      const transport = new FakeDwellir({
+        finalBlock: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
+      });
       const result = await runDwellirFrontierGapRecovery(options(root, base, transport));
       expect(result.summary.preflight).toMatchObject({
-        genesisHash: MOONBEAM_GENESIS_HASH,
-        indexedHeadHash: INDEXED_HEAD_HASH,
-        indexedHeadNumber: 2_500,
-        frontierGapCoverage: 'PASS',
+        finalEvmBlockHash: MOONBEAM_OBSERVED_EVM_BLOCK_HASH,
+        logProviderFinalBlock: 'PASS',
+        stateProviderPreflight: 'SKIPPED',
+        frontierGapCoverage: 'SKIPPED',
       });
-      expect(transport.calls.slice(0, 3).map((call) => call.method)).toEqual([
-        'moon_getEthSyncBlockRange',
-        'chain_getHeader',
+      expect(transport.calls.slice(0, 1).map((call) => call.method)).toEqual([
         'eth_getBlockByNumber',
       ]);
       expect(transport.calls.some((call) => call.method === 'eth_getLogs')).toBe(false);
@@ -168,16 +164,19 @@ describe('Dwellir Frontier coverage-gap recovery', () => {
     }
   }, 15_000);
 
-  it('stops as too shallow before issuing eth_getLogs', async () => {
+  it('stops before issuing eth_getLogs when the log provider final block mismatches', async () => {
     const root = await mkdtemp(join(tmpdir(), 'xcdot-frontier-gap-shallow-'));
     try {
       const base = baseFixture([[ADDRESS_A, 1n]]);
-      const transport = new FakeDwellir({ finalBlock: 2_500, indexedHead: 1_999 });
-      const result = await runDwellirFrontierGapRecovery(options(root, base, transport));
-      expect(result.summary.status).toBe('DWELLIR_FRONTIER_INDEX_TOO_SHALLOW');
-      expect(result.summary.preflight.frontierGapCoverage).toBe('FAIL');
+      const transport = new FakeDwellir({
+        finalBlock: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
+        finalBlockHash: `0x${'22'.repeat(32)}`,
+      });
+      await expect(runDwellirFrontierGapRecovery(options(root, base, transport))).rejects.toThrow(
+        'different EVM block',
+      );
       expect(transport.calls.some((call) => call.method === 'eth_getLogs')).toBe(false);
-      expect(transport.calls.some((call) => call.method === 'eth_getBlockByNumber')).toBe(false);
+      expect(transport.calls.some((call) => call.method === 'eth_getBlockByNumber')).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -187,7 +186,9 @@ describe('Dwellir Frontier coverage-gap recovery', () => {
     const root = await mkdtemp(join(tmpdir(), 'xcdot-frontier-gap-ranges-'));
     try {
       const base = baseFixture([[ADDRESS_A, 1n]]);
-      const transport = new FakeDwellir({ finalBlock: 2_500 });
+      const transport = new FakeDwellir({
+        finalBlock: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
+      });
       const result = await runDwellirFrontierGapRecovery(
         options(root, base, transport, { totalSupplyPlanck: '2' }),
       );
@@ -218,24 +219,33 @@ describe('Dwellir Frontier coverage-gap recovery', () => {
       ]);
       const d = candidateBalance(ADDRESS_D, 4n);
       const e = candidateBalance(ADDRESS_E, 5n);
-      const transport = new FakeDwellir({
-        finalBlock: 2_500,
+      const stateTransport = new FakeDwellir({
+        finalBlock: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
         balances: new Map([
           [d.substrateStorageKey, d.rawValue],
           [e.substrateStorageKey, e.rawValue],
         ]),
+      });
+      const logTransport = new FakeDwellir({
+        finalBlock: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
         logs: (_from, to) => [
           transfer(ADDRESS_B, ADDRESS_D, to),
           transfer(ADDRESS_C, ADDRESS_E, to),
         ],
       });
-      const result = await runDwellirFrontierGapRecovery(options(root, base, transport));
+      const result = await runDwellirFrontierGapRecovery(
+        options(root, base, stateTransport, { logTransport }),
+      );
       expect(result.summary.status).toBe('SUPPLY_COMPLETE');
-      expect(transport.storageKeys).toEqual([d.substrateStorageKey, e.substrateStorageKey].sort());
-      expect(transport.storageKeys).not.toContain(
+      expect(stateTransport.storageKeys).toEqual(
+        [d.substrateStorageKey, e.substrateStorageKey].sort(),
+      );
+      expect(stateTransport.storageKeys).not.toContain(
         deriveBalanceAccountStoragesKeyDirect(XC_DOT_XC20_ADDRESS, ADDRESS_B, 0n)
           .substrateStorageKey,
       );
+      expect(logTransport.calls.some((call) => call.method === 'eth_getLogs')).toBe(true);
+      expect(stateTransport.calls.some((call) => call.method === 'eth_getLogs')).toBe(false);
       expect(result.summary.newCandidatesTotal).toBe(2);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -249,7 +259,7 @@ describe('Dwellir Frontier coverage-gap recovery', () => {
       const d = candidateBalance(ADDRESS_D, 2n);
       const e = candidateBalance(ADDRESS_E, 0n);
       const transport = new FakeDwellir({
-        finalBlock: 2_500,
+        finalBlock: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
         balances: new Map([
           [d.substrateStorageKey, d.rawValue],
           [e.substrateStorageKey, e.rawValue],
@@ -286,7 +296,7 @@ describe('Dwellir Frontier coverage-gap recovery', () => {
         [f.substrateStorageKey, f.rawValue],
       ]);
       const firstTransport = new FakeDwellir({
-        finalBlock: 2_500,
+        finalBlock: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
         balances,
         failStorageFor: f.substrateStorageKey,
         logs: (_from, to) => [
@@ -304,7 +314,7 @@ describe('Dwellir Frontier coverage-gap recovery', () => {
         [d.substrateStorageKey, e.substrateStorageKey].sort(),
       );
       const secondTransport = new FakeDwellir({
-        finalBlock: 2_500,
+        finalBlock: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
         balances,
         logs: (_from, to) => [
           transfer(ADDRESS_A, ADDRESS_D, to),

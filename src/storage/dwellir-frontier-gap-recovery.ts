@@ -1,6 +1,6 @@
 import { access, mkdir, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { XC_DOT_XC20_ADDRESS, MOONBEAM_GENESIS_HASH } from '../asset/constants.js';
+import { XC_DOT_XC20_ADDRESS } from '../asset/constants.js';
 import {
   EXPECTED_XC_DOT_TOTAL_SUPPLY_PLANCK,
   MOONBEAM_FINAL_BLOCK_NUMBER,
@@ -22,6 +22,7 @@ import { extractIndexedAddress } from '../sqd/xcdot-transfer-candidates.js';
 import { TRANSFER_TOPIC0 } from '../sqd/client.js';
 import {
   createDwellirCurlTransport,
+  createPublicCurlTransport,
   resolveDwellirKey,
   type DwellirRpcTransport,
 } from './dwellir-final-state-recovery.js';
@@ -39,6 +40,8 @@ export const DWELLIR_GAP_DEFAULT_TIMEOUT_MS = 300_000 as const;
 export const DWELLIR_GAP_DEFAULT_CONNECT_TIMEOUT_MS = 120_000 as const;
 export const DWELLIR_GAP_DEFAULT_RETRIES = 5 as const;
 export const DWELLIR_GAP_DEFAULT_STORAGE_CONCURRENCY = 2 as const;
+export const DWELLIR_GAP_DEFAULT_LOG_ENDPOINT =
+  'https://moonbeam.api.onfinality.io/public' as const;
 export const DWELLIR_GAP_DEFAULT_WORK = 'diagnostics/dwellir-gap-recovery' as const;
 export const DWELLIR_GAP_DEFAULT_PRIOR_WORK = 'diagnostics/sqd-backward-recovery' as const;
 export const DWELLIR_GAP_DEFAULT_BASE_WORK =
@@ -53,12 +56,14 @@ export type DwellirFrontierGapStatus =
   | 'DWELLIR_FRONTIER_INDEX_TOO_SHALLOW';
 
 export interface DwellirFrontierPreflight {
-  genesisHash: string;
-  indexedHeadHash: string;
-  indexedHeadNumber: number;
+  genesisHash: string | null;
+  indexedHeadHash: string | null;
+  indexedHeadNumber: number | null;
   requiredGapEnd: number;
-  frontierGapCoverage: 'PASS' | 'FAIL';
+  frontierGapCoverage: 'SKIPPED';
   finalEvmBlockHash: string;
+  logProviderFinalBlock: 'PASS';
+  stateProviderPreflight: 'SKIPPED';
 }
 
 export interface DwellirGapRangeResult {
@@ -133,6 +138,7 @@ export interface DwellirFrontierGapOptions {
   key?: string;
   keyFile?: string;
   endpointBase?: string;
+  logEndpoint?: string;
   gapStart?: number;
   gapEnd?: number;
   logWindowBlocks?: number;
@@ -143,6 +149,8 @@ export interface DwellirFrontierGapOptions {
   resume?: boolean;
   force?: boolean;
   transport?: DwellirRpcTransport;
+  stateTransport?: DwellirRpcTransport;
+  logTransport?: DwellirRpcTransport;
   progress?: (message: string) => void;
   baseCandidates?: readonly string[];
   baseBalances?: readonly FinalBalanceResult[];
@@ -462,57 +470,10 @@ async function loadState(
   };
 }
 
-function validateH256(value: unknown, label: string): string {
-  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(value)) {
-    throw new DwellirFrontierGapError(
-      'DWELLIR_FRONTIER_CHAIN_MISMATCH',
-      `${label} is not a block hash.`,
-      {
-        value: String(value),
-      },
-    );
-  }
-  return value.toLowerCase();
-}
-
-async function runPreflight(
+async function runLogPreflight(
   transport: DwellirRpcTransport,
   finalBlockNumber: number,
 ): Promise<DwellirFrontierPreflight> {
-  const syncRange = await transport.call('moon_getEthSyncBlockRange', []);
-  if (!Array.isArray(syncRange) || syncRange.length !== 2) {
-    throw new DwellirFrontierGapError(
-      'DWELLIR_FRONTIER_CHAIN_MISMATCH',
-      'moon_getEthSyncBlockRange did not return exactly two block hashes.',
-    );
-  }
-  const genesisHash = validateH256(syncRange[0], 'Frontier genesis hash');
-  if (genesisHash !== MOONBEAM_GENESIS_HASH) {
-    throw new DwellirFrontierGapError(
-      'DWELLIR_FRONTIER_CHAIN_MISMATCH',
-      'Dwellir Frontier sync range belongs to a different chain.',
-      { expectedGenesisHash: MOONBEAM_GENESIS_HASH, actualGenesisHash: genesisHash },
-    );
-  }
-  const indexedHeadHash = validateH256(syncRange[1], 'Frontier indexed head hash');
-  const header = await transport.call('chain_getHeader', [indexedHeadHash]);
-  if (!isObject(header)) {
-    throw new DwellirFrontierGapError(
-      'DWELLIR_FRONTIER_CHAIN_MISMATCH',
-      'Dwellir Frontier indexed head header is not an object.',
-    );
-  }
-  const indexedHeadNumber = parseQuantity(header.number, 'Frontier indexed head number');
-  if (indexedHeadNumber < finalBlockNumber) {
-    return {
-      genesisHash,
-      indexedHeadHash,
-      indexedHeadNumber,
-      requiredGapEnd: finalBlockNumber,
-      frontierGapCoverage: 'FAIL',
-      finalEvmBlockHash: '',
-    };
-  }
   const finalBlock = await transport.call('eth_getBlockByNumber', [
     hexQuantity(finalBlockNumber),
     false,
@@ -524,7 +485,7 @@ async function runPreflight(
   ) {
     throw new DwellirFrontierGapError(
       'DWELLIR_FRONTIER_FINAL_BLOCK_MISMATCH',
-      'Dwellir did not return the pinned final EVM block.',
+      'The log provider did not return the pinned final EVM block.',
     );
   }
   const requested = hexQuantity(finalBlockNumber);
@@ -534,7 +495,7 @@ async function runPreflight(
   ) {
     throw new DwellirFrontierGapError(
       'DWELLIR_FRONTIER_FINAL_BLOCK_MISMATCH',
-      'Dwellir returned a different EVM block for the pinned final height.',
+      'The log provider returned a different EVM block for the pinned final height.',
       {
         expectedNumber: requested,
         actualNumber: finalBlock.number,
@@ -544,12 +505,14 @@ async function runPreflight(
     );
   }
   return {
-    genesisHash,
-    indexedHeadHash,
-    indexedHeadNumber,
+    genesisHash: null,
+    indexedHeadHash: null,
+    indexedHeadNumber: null,
     requiredGapEnd: finalBlockNumber,
-    frontierGapCoverage: 'PASS',
+    frontierGapCoverage: 'SKIPPED',
     finalEvmBlockHash: finalBlock.hash.toLowerCase(),
+    logProviderFinalBlock: 'PASS',
+    stateProviderPreflight: 'SKIPPED',
   };
 }
 
@@ -866,7 +829,8 @@ export async function runDwellirFrontierGapRecovery(
   if (options.force) await rm(workDirectory, { recursive: true, force: true });
   await mkdir(workDirectory, { recursive: true });
 
-  const transport =
+  const stateTransport =
+    options.stateTransport ??
     options.transport ??
     createDwellirCurlTransport({
       key: await resolveDwellirKey(options.key, options.keyFile),
@@ -875,7 +839,17 @@ export async function runDwellirFrontierGapRecovery(
       connectTimeoutMs: options.connectTimeoutMs ?? DWELLIR_GAP_DEFAULT_CONNECT_TIMEOUT_MS,
       retries: options.retries ?? DWELLIR_GAP_DEFAULT_RETRIES,
     });
-  const preflight = await runPreflight(transport, gapEnd);
+  const logTransport =
+    options.logTransport ??
+    (options.logEndpoint === undefined
+      ? stateTransport
+      : createPublicCurlTransport({
+          endpoint: options.logEndpoint,
+          timeoutMs: options.timeoutMs ?? DWELLIR_GAP_DEFAULT_TIMEOUT_MS,
+          connectTimeoutMs: options.connectTimeoutMs ?? DWELLIR_GAP_DEFAULT_CONNECT_TIMEOUT_MS,
+          retries: options.retries ?? DWELLIR_GAP_DEFAULT_RETRIES,
+        }));
+  const preflight = await runLogPreflight(logTransport, Number(MOONBEAM_FINAL_BLOCK_NUMBER));
   const state = await loadState(options, workDirectory);
   const checkpoint = options.resume === false ? undefined : await loadCheckpoint(checkpointPath);
   const context: GapContext = {
@@ -907,6 +881,7 @@ export async function runDwellirFrontierGapRecovery(
       'gapStart',
       'gapEnd',
       'logWindowBlocks',
+      'finalEvmBlockHash',
     ] as const) {
       if (String(saved[field]).toLowerCase() !== String(context[field]).toLowerCase()) {
         throw new FinalStateIdentityMismatchError('Dwellir Frontier gap resume context differs.', {
@@ -931,33 +906,13 @@ export async function runDwellirFrontierGapRecovery(
     ndjson(sortedAddresses(state.allKnownCandidates).map((address) => ({ address }))),
   );
 
-  progress(`DWELLIR_FRONTIER_GENESIS_HASH=${preflight.genesisHash}`);
-  progress(`DWELLIR_FRONTIER_INDEXED_HEAD_HASH=${preflight.indexedHeadHash}`);
-  progress(`DWELLIR_FRONTIER_INDEXED_HEAD_NUMBER=${preflight.indexedHeadNumber}`);
+  progress(`LOG_PROVIDER_FINAL_BLOCK=${preflight.logProviderFinalBlock}`);
+  progress(`LOG_PROVIDER_FINAL_BLOCK_HASH=${preflight.finalEvmBlockHash}`);
+  progress(`STATE_PROVIDER_PREFLIGHT=${preflight.stateProviderPreflight}`);
   progress(`REQUIRED_GAP_END=${gapEnd}`);
   progress(`FRONTIER_GAP_COVERAGE=${preflight.frontierGapCoverage}`);
 
   let currentCheckpoint = checkpoint ?? initialCheckpoint(totalSupply, state.committedSum, gapEnd);
-  if (preflight.frontierGapCoverage === 'FAIL') {
-    currentCheckpoint = { ...currentCheckpoint, status: 'DWELLIR_FRONTIER_INDEX_TOO_SHALLOW' };
-    const summary = makeSummary(
-      state,
-      preflight,
-      'DWELLIR_FRONTIER_INDEX_TOO_SHALLOW',
-      currentCheckpoint,
-      {
-        gapStart,
-        gapEnd,
-        totalSupply,
-        logWindowBlocks,
-        priorWork,
-      },
-    );
-    await writeAtomic(summaryPath, json(summary));
-    await writeAtomic(checkpointPath, json(currentCheckpoint));
-    return { workDirectory, summaryFile: summaryPath, summary };
-  }
-
   const currentAllSum = state.baseOrPriorSum + sumBalances(state.gapBalances.values());
   if (currentAllSum > totalSupply) {
     throw new FinalStateSupplyOverflowError(
@@ -970,7 +925,7 @@ export async function runDwellirFrontierGapRecovery(
   }
   if (currentAllSum === totalSupply) {
     const proofsCaptured = await ensureGapProofs(
-      transport,
+      stateTransport,
       state.gapBalances.values(),
       proofsDirectory,
     );
@@ -996,7 +951,7 @@ export async function runDwellirFrontierGapRecovery(
   let cursorEnd = checkpoint?.nextCursorEnd ?? gapEnd;
   if (cursorEnd < gapStart) {
     const proofsCaptured = await ensureGapProofs(
-      transport,
+      stateTransport,
       state.gapBalances.values(),
       proofsDirectory,
     );
@@ -1024,7 +979,7 @@ export async function runDwellirFrontierGapRecovery(
     const blockEnd = cursorEnd;
     progress(`RANGE=${rangeNumber + 1}`);
     progress(`BLOCK_RANGE=${blockStart}-${blockEnd}`);
-    const scanned = await readLogs(transport, blockStart, blockEnd);
+    const scanned = await readLogs(logTransport, blockStart, blockEnd);
     const discovered = sortedAddresses(scanned.addresses);
     const newCandidates = discovered.filter((address) => !state.committedCandidates.has(address));
     const balanceRecords: FinalBalanceResult[] = [];
@@ -1034,7 +989,7 @@ export async function runDwellirFrontierGapRecovery(
         batch.map(async (address) => {
           const existing = state.gapBalances.get(address);
           if (existing !== undefined) return existing;
-          return readFinalBalance(transport, address);
+          return readFinalBalance(stateTransport, address);
         }),
       );
       for (const outcome of settled) {
@@ -1061,7 +1016,7 @@ export async function runDwellirFrontierGapRecovery(
     const positive = balanceRecords.filter((record) => BigInt(record.balancePlanck) > 0n);
     const zero = balanceRecords.filter((record) => BigInt(record.balancePlanck) === 0n);
     for (const record of positive) {
-      await captureBalanceReadProof(transport, record, proofsDirectory, true);
+      await captureBalanceReadProof(stateTransport, record, proofsDirectory, true);
     }
     const newPositiveSum = sumBalances(positive);
     const knownSumBefore =

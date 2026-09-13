@@ -59,7 +59,7 @@ xcdot-recovery recover-dwellir-final-state --dataset snapshots/subscan --moonsca
 xcdot-recovery recover-dwellir-final-state --dataset snapshots/subscan --candidate-extension snapshots/routescan/xcdot-holders.ndjson --expected-total-supply 2334516727484230 --resume
 xcdot-recovery fetch-sqd-xcdot-candidates --from-block 0 --to-block 16796696 --resume
 xcdot-recovery recover-sqd-backward --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --window-blocks 10000 --max-unproductive-windows 20 --resume
-xcdot-recovery recover-dwellir-gap --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --prior-work diagnostics/sqd-backward-recovery --gap-start 16669569 --gap-end 16796696 --log-window-blocks 1000 --connect-timeout-ms 120000 --timeout-ms 300000 --storage-concurrency 2 --resume
+xcdot-recovery recover-dwellir-gap --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --prior-work diagnostics/sqd-backward-recovery --gap-start 16669569 --gap-end 16796696 --log-window-blocks 1000 --log-endpoint https://moonbeam.api.onfinality.io/public --connect-timeout-ms 120000 --timeout-ms 300000 --storage-concurrency 2 --resume
 ```
 
 `--rpc` may be omitted only when `MOONBEAM_RPC` is set. No third-party provider is selected automatically.

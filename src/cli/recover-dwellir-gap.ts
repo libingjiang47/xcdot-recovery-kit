@@ -3,6 +3,7 @@ import {
   DWELLIR_GAP_DEFAULT_BASE_WORK,
   DWELLIR_GAP_DEFAULT_CONNECT_TIMEOUT_MS,
   DWELLIR_GAP_DEFAULT_END,
+  DWELLIR_GAP_DEFAULT_LOG_ENDPOINT,
   DWELLIR_GAP_DEFAULT_LOG_WINDOW_BLOCKS,
   DWELLIR_GAP_DEFAULT_PRIOR_WORK,
   DWELLIR_GAP_DEFAULT_STORAGE_CONCURRENCY,
@@ -37,6 +38,11 @@ export function recoverDwellirGapCommand(): Command {
   );
   command.option('--key-file <file>', 'Optional local file containing DWELLIR_KEY');
   command.option('--endpoint-base <url>', 'Dwellir endpoint base URL');
+  command.option(
+    '--log-endpoint <url>',
+    'Independent EVM JSON-RPC endpoint for eth_getBlockByNumber and eth_getLogs',
+    DWELLIR_GAP_DEFAULT_LOG_ENDPOINT,
+  );
   command.option('--gap-start <block>', 'First uncovered Frontier block', '16669569');
   command.option(
     '--gap-end <block>',
@@ -85,6 +91,7 @@ export function recoverDwellirGapCommand(): Command {
       baseWork: string;
       keyFile?: string;
       endpointBase?: string;
+      logEndpoint: string;
       gapStart: string;
       gapEnd: string;
       logWindowBlocks: string;
@@ -104,6 +111,7 @@ export function recoverDwellirGapCommand(): Command {
         baseWork: options.baseWork,
         ...(options.keyFile === undefined ? {} : { keyFile: options.keyFile }),
         ...(options.endpointBase === undefined ? {} : { endpointBase: options.endpointBase }),
+        logEndpoint: options.logEndpoint,
         gapStart: positiveInteger(options.gapStart, 'gap-start'),
         gapEnd: positiveInteger(options.gapEnd, 'gap-end'),
         logWindowBlocks: positiveInteger(options.logWindowBlocks, 'log-window-blocks'),
@@ -119,9 +127,9 @@ export function recoverDwellirGapCommand(): Command {
       };
       return runDwellirFrontierGapRecovery(recoveryOptions).then((result) => {
         const summary = result.summary;
-        console.log(`DWELLIR_FRONTIER_GENESIS_HASH=${summary.preflight.genesisHash}`);
-        console.log(`DWELLIR_FRONTIER_INDEXED_HEAD_HASH=${summary.preflight.indexedHeadHash}`);
-        console.log(`DWELLIR_FRONTIER_INDEXED_HEAD_NUMBER=${summary.preflight.indexedHeadNumber}`);
+        console.log(`LOG_PROVIDER_FINAL_BLOCK=${summary.preflight.logProviderFinalBlock}`);
+        console.log(`LOG_PROVIDER_FINAL_BLOCK_HASH=${summary.preflight.finalEvmBlockHash}`);
+        console.log(`STATE_PROVIDER_PREFLIGHT=${summary.preflight.stateProviderPreflight}`);
         console.log(`REQUIRED_GAP_END=${summary.gapEnd}`);
         console.log(`FRONTIER_GAP_COVERAGE=${summary.preflight.frontierGapCoverage}`);
         console.log(`GAP_START=${summary.gapStart}`);

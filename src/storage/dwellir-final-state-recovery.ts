@@ -250,7 +250,7 @@ export async function resolveDwellirKey(explicit?: string, keyFile?: string): Pr
 function rpcError(method: string, error: unknown): FinalStateStorageBackendUnsupportedError {
   const detail =
     typeof error === 'object' && error !== null ? JSON.stringify(error) : String(error);
-  return new FinalStateStorageBackendUnsupportedError(`Dwellir JSON-RPC ${method} failed.`, {
+  return new FinalStateStorageBackendUnsupportedError(`JSON-RPC ${method} failed.`, {
     method,
     detail: detail.slice(0, 1024),
   });
@@ -350,7 +350,7 @@ async function curlJson(
       [child.message, child.stderr].filter((item): item is string => Boolean(item)).join('\n'),
       key,
     );
-    throw new FinalStateStorageBackendUnsupportedError('Dwellir curl request failed.', {
+    throw new FinalStateStorageBackendUnsupportedError('JSON-RPC curl request failed.', {
       detail: detail.slice(0, 2048),
     });
   }
@@ -370,12 +370,49 @@ export function createDwellirCurlTransport(options: {
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
   const retries = options.retries ?? DEFAULT_RETRIES;
   validateTimeouts(timeoutMs, connectTimeoutMs);
+  return createCurlRpcTransport(endpoint, timeoutMs, connectTimeoutMs, retries, key);
+}
+
+export function createPublicCurlTransport(options: {
+  endpoint: string;
+  timeoutMs?: number;
+  connectTimeoutMs?: number;
+  retries?: number;
+}): DwellirRpcTransport {
+  const endpoint = options.endpoint.trim();
+  if (!/^https?:\/\/[^\s]+$/i.test(endpoint)) {
+    throw new FinalStateStorageBackendUnsupportedError(
+      'Public JSON-RPC endpoint must be an absolute HTTP(S) URL.',
+      { endpoint },
+    );
+  }
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+  const retries = options.retries ?? DEFAULT_RETRIES;
+  validateTimeouts(timeoutMs, connectTimeoutMs);
+  return createCurlRpcTransport(endpoint, timeoutMs, connectTimeoutMs, retries, '');
+}
+
+function createCurlRpcTransport(
+  endpoint: string,
+  timeoutMs: number,
+  connectTimeoutMs: number,
+  retries: number,
+  redactionKey: string,
+): DwellirRpcTransport {
   let nextId = 1;
   return {
     async call(method, params) {
       const id = nextId++;
       const payload: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
-      const response = await curlJson(endpoint, payload, timeoutMs, connectTimeoutMs, retries, key);
+      const response = await curlJson(
+        endpoint,
+        payload,
+        timeoutMs,
+        connectTimeoutMs,
+        retries,
+        redactionKey,
+      );
       return parseRpcEnvelope(response, method);
     },
     async batch(calls) {
@@ -391,7 +428,7 @@ export function createDwellirCurlTransport(options: {
         timeoutMs,
         connectTimeoutMs,
         retries,
-        key,
+        redactionKey,
       );
       if (!Array.isArray(response)) {
         throw rpcError('batch', 'server did not return a JSON-RPC batch array');
