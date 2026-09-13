@@ -592,7 +592,7 @@ export async function recoverDwellirWithCandidateExtension(
   const baseWork = resolve(options.work ?? DEFAULT_WORK);
   const extensionName = `candidate-${extension.sourceSha256.slice(0, 16)}`;
   const extensionWork = join(baseWork, 'extensions', extensionName);
-  const diffDirectory = resolve(options.candidateDiffOut ?? DEFAULT_DIFF_OUT);
+  const diffDirectory = resolve(options.candidateDiffOut ?? join(DEFAULT_DIFF_OUT, extensionName));
   if (options.force || options.forceSourceChange)
     await rm(extensionWork, { recursive: true, force: true });
   const candidateInput = join(extensionWork, 'candidate-input');
