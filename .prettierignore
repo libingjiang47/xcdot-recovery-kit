@@ -4,4 +4,5 @@ diagnostics/**/read-proof.json
 diagnostics/dwellir-final-state-recovery-work/**
 diagnostics/moonscan-diff/**
 diagnostics/sqd-xcdot-transfer-discovery/**
+diagnostics/sqd-backward-recovery/**
 snapshots/moonscan/**
