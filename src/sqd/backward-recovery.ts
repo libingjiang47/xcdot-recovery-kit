@@ -185,7 +185,7 @@ interface WindowScanResult {
   availableHead?: number;
 }
 
-interface LoadedBaseState {
+export interface LoadedBaseState {
   candidates: Set<string>;
   balances: Map<string, FinalBalanceResult>;
   candidateDigest: string;
@@ -382,7 +382,9 @@ function balanceRecord(
   };
 }
 
-async function loadBaseState(options: BackwardRecoveryOptions): Promise<LoadedBaseState> {
+export async function loadBackwardBaseState(
+  options: BackwardRecoveryOptions,
+): Promise<LoadedBaseState> {
   let candidates: string[];
   const balances = new Map<string, FinalBalanceResult>();
   if (options.baseCandidates !== undefined && options.baseBalances !== undefined) {
@@ -511,7 +513,7 @@ async function loadBaseState(options: BackwardRecoveryOptions): Promise<LoadedBa
   return { candidates: candidateSet, balances, candidateDigest, sum, positiveCount };
 }
 
-async function loadAddressFile(path: string): Promise<Set<string>> {
+export async function loadBackwardAddressFile(path: string): Promise<Set<string>> {
   if (!(await pathExists(path))) return new Set<string>();
   const result = new Set<string>();
   for (const [index, line] of (await readFile(path, 'utf8')).split(/\r?\n/).entries()) {
@@ -535,7 +537,9 @@ async function loadAddressFile(path: string): Promise<Set<string>> {
   return result;
 }
 
-async function loadBalanceFile(path: string): Promise<Map<string, FinalBalanceResult>> {
+export async function loadBackwardBalanceFile(
+  path: string,
+): Promise<Map<string, FinalBalanceResult>> {
   if (!(await pathExists(path))) return new Map();
   const result = new Map<string, FinalBalanceResult>();
   for (const [index, line] of (await readFile(path, 'utf8')).split(/\r?\n/).entries()) {
@@ -791,7 +795,7 @@ async function scanBackwardWindow(
   return { transferLogCount, transferAddressCount: addresses.size, addresses };
 }
 
-async function readFinalBalance(
+export async function readFinalBalance(
   transport: DwellirRpcTransport,
   address: string,
 ): Promise<FinalBalanceResult> {
@@ -835,7 +839,7 @@ function proofPath(proofsDirectory: string, address: string): string {
   return join(proofsDirectory, `${address}.json`);
 }
 
-async function captureBalanceReadProof(
+export async function captureBalanceReadProof(
   transport: DwellirRpcTransport,
   result: FinalBalanceResult,
   proofsDirectory: string,
@@ -999,7 +1003,7 @@ export async function runSqdBackwardRecovery(
     });
   }
   const workDirectory = resolve(options.work ?? BACKWARD_DEFAULT_WORK);
-  const base = await loadBaseState(options);
+  const base = await loadBackwardBaseState(options);
   const totalSupply = BigInt(options.totalSupplyPlanck ?? EXPECTED_XC_DOT_TOTAL_SUPPLY_PLANCK);
   const staticContext = {
     schemaVersion: 1,
@@ -1100,7 +1104,7 @@ export async function runSqdBackwardRecovery(
   }
   await writeJson(contextFile, context);
 
-  const loadedBalances = await loadBalanceFile(balancesFile);
+  const loadedBalances = await loadBackwardBalanceFile(balancesFile);
   for (const address of loadedBalances.keys()) {
     if (base.candidates.has(address))
       throw new FinalStateIdentityMismatchError(
@@ -1108,7 +1112,7 @@ export async function runSqdBackwardRecovery(
         { address },
       );
   }
-  const loadedCommitted = await loadAddressFile(candidatesFile);
+  const loadedCommitted = await loadBackwardAddressFile(candidatesFile);
   for (const address of base.candidates) {
     if (loadedCommitted.size > 0 && !loadedCommitted.has(address)) {
       throw new FinalStateIdentityMismatchError(

@@ -322,6 +322,26 @@ export class Rank565ResumeContextMismatchError extends XcDotError {
   }
 }
 
+export type DwellirFrontierGapErrorCode =
+  | 'DWELLIR_FRONTIER_CHAIN_MISMATCH'
+  | 'DWELLIR_FRONTIER_INDEX_TOO_SHALLOW'
+  | 'DWELLIR_FRONTIER_FINAL_BLOCK_MISMATCH'
+  | 'DWELLIR_GAP_REMOVED_LOG'
+  | 'DWELLIR_GAP_LOG_OUT_OF_RANGE'
+  | 'DWELLIR_GAP_INVALID_LOG'
+  | 'PRIOR_RECOVERY_CONTEXT_MISMATCH';
+
+export class DwellirFrontierGapError extends XcDotError {
+  constructor(
+    code: DwellirFrontierGapErrorCode,
+    message: string,
+    details: Record<string, string | number | boolean> = {},
+  ) {
+    super(code, message, details);
+    this.name = 'DwellirFrontierGapError';
+  }
+}
+
 export type SqdCandidateDiscoveryErrorCode =
   | 'SQD_INPUT_ERROR'
   | 'SQD_HTTP_ERROR'
