@@ -322,6 +322,29 @@ export class Rank565ResumeContextMismatchError extends XcDotError {
   }
 }
 
+export type SqdCandidateDiscoveryErrorCode =
+  | 'SQD_INPUT_ERROR'
+  | 'SQD_HTTP_ERROR'
+  | 'SQD_RPC_ERROR'
+  | 'SQD_CONTEXT_MISMATCH'
+  | 'SQD_STREAM_INVALID_JSON'
+  | 'SQD_STREAM_INVALID_HEADER'
+  | 'SQD_STREAM_NON_MONOTONIC_BLOCK'
+  | 'SQD_STREAM_INVALID_TRANSFER_LOG'
+  | 'SQD_STREAM_NO_PROGRESS'
+  | 'SQD_STREAM_BLOCK_OUT_OF_RANGE';
+
+export class SqdCandidateDiscoveryError extends XcDotError {
+  constructor(
+    code: SqdCandidateDiscoveryErrorCode,
+    message: string,
+    details: Record<string, string | number | boolean> = {},
+  ) {
+    super(code, message, details);
+    this.name = 'SqdCandidateDiscoveryError';
+  }
+}
+
 export function asXcDotError(error: unknown): XcDotError {
   if (error instanceof XcDotError) return error;
   const message = error instanceof Error ? error.message : String(error);

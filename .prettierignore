@@ -3,4 +3,5 @@ diagnostics/**/read-proof.json
 # Large externally captured cache and CSV evidence retain their original bytes.
 diagnostics/dwellir-final-state-recovery-work/**
 diagnostics/moonscan-diff/**
+diagnostics/sqd-xcdot-transfer-discovery/**
 snapshots/moonscan/**

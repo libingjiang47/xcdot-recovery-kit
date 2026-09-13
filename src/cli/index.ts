@@ -24,6 +24,7 @@ import { probeNownodesFinalStateCommand } from './probe-nownodes-final-state.js'
 import { probeDwellirFinalStateCommand } from './probe-dwellir-final-state.js';
 import { probeDwellirFinalStateDirectCommand } from './probe-dwellir-final-state-direct.js';
 import { recoverDwellirFinalStateCommand } from './recover-dwellir-final-state.js';
+import { fetchSqdXcdotCandidatesCommand } from './fetch-sqd-xcdot-candidates.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -54,6 +55,7 @@ export function createProgram(): Command {
   program.addCommand(probeDwellirFinalStateCommand());
   program.addCommand(probeDwellirFinalStateDirectCommand());
   program.addCommand(recoverDwellirFinalStateCommand());
+  program.addCommand(fetchSqdXcdotCandidatesCommand());
   return program;
 }
 
