@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { XC_DOT_XC20_ADDRESS } from '../../src/asset/constants.js';
 import {
+  MOONBEAM_FINAL_BLOCK_NUMBER,
   MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
   MOONBEAM_FINAL_SUBSTRATE_STATE_ROOT,
 } from '../../src/final-state/constants.js';
@@ -12,10 +13,18 @@ import {
   classifyFinalBalances,
   runSqdBackwardRecovery,
   selectNewCandidates,
+  updateBackwardProgressCounters,
   type DwellirRpcTransport,
   type FinalBalanceResult,
 } from '../../src/sqd/backward-recovery.js';
-import { SqdNoContentError, TRANSFER_TOPIC0, type SqdRangeClient } from '../../src/sqd/client.js';
+import {
+  SQD_DATASET,
+  SQD_ENDPOINT,
+  SqdNoContentError,
+  TRANSFER_TOPIC0,
+  type SqdRangeClient,
+} from '../../src/sqd/client.js';
+import { candidateAddressesSha256 } from '../../src/subscan/candidates.js';
 import { deriveBalanceAccountStoragesKeyDirect } from '../../src/storage/substrate-evm.js';
 import { encodeU256Storage } from '../../src/storage/solidity.js';
 
@@ -117,6 +126,55 @@ describe('SQD backward incremental recovery', () => {
       positive: [balances[0]],
       zero: [balances[1]],
       positiveSum: 7n,
+    });
+  });
+
+  it('counts candidate-only progress as unproductive recovery progress', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'xcdot-sqd-backward-unproductive-'));
+    try {
+      const base = baseFixture([[ADDRESS_A, 1n]]);
+      const newZero = candidateBalance(ADDRESS_D, 0n);
+      const client: SqdRangeClient = {
+        async fetchRange(fromBlock, toBlock) {
+          return response(fromBlock, toBlock, [transfer(ADDRESS_A, ADDRESS_D)]);
+        },
+      };
+      const result = await runSqdBackwardRecovery({
+        work: join(root, 'work'),
+        baseCandidates: base.candidates,
+        baseBalances: base.balances,
+        totalSupplyPlanck: '10',
+        windowBlocks: 10,
+        maxUnproductiveWindows: 1,
+        transport: makeTransport(new Map([[newZero.substrateStorageKey, newZero.rawValue]])),
+        sqdClient: client,
+      });
+      expect(result.summary.status).toBe('BACKWARD_DISCOVERY_STALLED');
+      expect(result.summary.newCandidateCount).toBe(1);
+      expect(result.summary.newPositiveCount).toBe(0);
+      expect(result.summary.consecutiveNoNewCandidateWindows).toBe(0);
+      expect(result.summary.consecutiveUnproductiveWindows).toBe(1);
+      const round = JSON.parse(
+        await readFile(join(root, 'work', 'rounds', '000001.json'), 'utf8'),
+      ) as Record<string, unknown>;
+      expect(round.productive).toBe(false);
+      expect(round.deficitReductionPlanck).toBe('0');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('resets the unproductive counter when a positive balance is found', () => {
+    expect(
+      updateBackwardProgressCounters(
+        { consecutiveNoNewCandidateWindows: 4, consecutiveUnproductiveWindows: 7 },
+        1,
+        100n,
+      ),
+    ).toEqual({
+      productive: true,
+      consecutiveNoNewCandidateWindows: 0,
+      consecutiveUnproductiveWindows: 0,
     });
   });
 
@@ -243,7 +301,7 @@ describe('SQD backward incremental recovery', () => {
           baseBalances: base.balances,
           totalSupplyPlanck: '20',
           windowBlocks: 100,
-          maxEmptyWindows: 1,
+          maxUnproductiveWindows: 1,
           transport,
           sqdClient: firstClient,
         }),
@@ -264,7 +322,7 @@ describe('SQD backward incremental recovery', () => {
         baseBalances: base.balances,
         totalSupplyPlanck: '20',
         windowBlocks: 100,
-        maxEmptyWindows: 1,
+        maxUnproductiveWindows: 1,
         transport,
         sqdClient: secondClient,
         resume: true,
@@ -279,7 +337,7 @@ describe('SQD backward incremental recovery', () => {
     }
   });
 
-  it('stops after the configured number of empty windows with a shortfall', async () => {
+  it('stops after the configured number of unproductive windows with a shortfall', async () => {
     const root = await mkdtemp(join(tmpdir(), 'xcdot-sqd-backward-stall-'));
     try {
       const base = baseFixture([[ADDRESS_A, 1n]]);
@@ -296,13 +354,111 @@ describe('SQD backward incremental recovery', () => {
         baseBalances: base.balances,
         totalSupplyPlanck: '10',
         windowBlocks: 10,
-        maxEmptyWindows: 3,
+        maxUnproductiveWindows: 3,
         transport: makeTransport(new Map()),
         sqdClient: client,
       });
       expect(calls).toBe(3);
       expect(result.summary.status).toBe('BACKWARD_DISCOVERY_STALLED');
       expect(result.summary.remainingDeficitPlanck).toBe('9');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rebuilds the unproductive counter from a legacy checkpoint suffix on resume', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'xcdot-sqd-backward-migrate-'));
+    try {
+      const base = baseFixture([[ADDRESS_A, 1n]]);
+      const work = join(root, 'work');
+      await mkdir(join(work, 'rounds'), { recursive: true });
+      await writeFile(
+        join(work, 'context.json'),
+        JSON.stringify(
+          {
+            schemaVersion: 1,
+            finalBlockNumber: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
+            finalBlockHash: MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
+            stateRoot: MOONBEAM_FINAL_SUBSTRATE_STATE_ROOT,
+            contract: XC_DOT_XC20_ADDRESS,
+            balancesSlot: '0',
+            totalSupplyPlanck: '20',
+            sqdDataset: SQD_DATASET,
+            sqdEndpoint: SQD_ENDPOINT,
+            windowBlocks: 100,
+            maxEmptyWindows: 100,
+            baseCandidateDigest: candidateAddressesSha256(base.candidates),
+            baseCandidateCount: 1,
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+      await writeFile(
+        join(work, 'checkpoint.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          nextCursorEnd: 500,
+          completedRounds: 5,
+          consecutiveEmptyWindows: 0,
+          knownCandidateCount: 1,
+          knownPositiveCount: 1,
+          knownFinalSumPlanck: '1',
+          remainingDeficitPlanck: '19',
+          newCandidateCountTotal: 0,
+          newPositiveCountTotal: 0,
+          newZeroCountTotal: 0,
+          proofsCaptured: 0,
+        }) + '\n',
+      );
+      for (let round = 1; round <= 5; round += 1) {
+        const positive = round === 3;
+        await writeFile(
+          join(work, 'rounds', `${String(round).padStart(6, '0')}.json`),
+          JSON.stringify({
+            round,
+            blockStart: 500 - round * 100,
+            blockEnd: 599 - round * 100,
+            transferLogCount: 1,
+            transferAddressCount: 1,
+            newCandidateCount: 1,
+            newPositiveCount: positive ? 1 : 0,
+            newZeroCount: positive ? 0 : 1,
+            newPositiveSumPlanck: positive ? '1' : '0',
+            knownCandidateCountAfter: 1,
+            knownPositiveCountAfter: 1,
+            knownFinalSumPlanckAfter: '1',
+            remainingDeficitPlanckAfter: '19',
+            proofsCaptured: 0,
+          }) + '\n',
+        );
+      }
+      let calls = 0;
+      const result = await runSqdBackwardRecovery({
+        work,
+        baseCandidates: base.candidates,
+        baseBalances: base.balances,
+        totalSupplyPlanck: '20',
+        windowBlocks: 100,
+        maxUnproductiveWindows: 2,
+        transport: makeTransport(new Map()),
+        sqdClient: {
+          async fetchRange() {
+            calls += 1;
+            throw new Error('resume should stall before scanning');
+          },
+        },
+        resume: true,
+      });
+      expect(calls).toBe(0);
+      expect(result.summary.status).toBe('BACKWARD_DISCOVERY_STALLED');
+      expect(result.summary.rounds).toBe(5);
+      expect(result.summary.consecutiveUnproductiveWindows).toBe(2);
+      const checkpoint = JSON.parse(
+        await readFile(join(work, 'checkpoint.json'), 'utf8'),
+      ) as Record<string, unknown>;
+      expect(checkpoint.schemaVersion).toBe(2);
+      expect(checkpoint.consecutiveUnproductiveWindows).toBe(2);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

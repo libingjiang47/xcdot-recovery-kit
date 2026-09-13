@@ -43,6 +43,8 @@ import {
 } from './client.js';
 
 export const BACKWARD_DEFAULT_WINDOW_BLOCKS = 100_000 as const;
+export const BACKWARD_DEFAULT_MAX_UNPRODUCTIVE_WINDOWS = 20 as const;
+/** @deprecated Accepted by older callers for compatibility; it no longer controls stopping. */
 export const BACKWARD_DEFAULT_MAX_EMPTY_WINDOWS = 10 as const;
 export const BACKWARD_DEFAULT_CONNECT_TIMEOUT_MS = 120_000 as const;
 export const BACKWARD_DEFAULT_TIMEOUT_MS = 300_000 as const;
@@ -80,18 +82,25 @@ export interface BackwardRoundResult {
   newPositiveCount: number;
   newZeroCount: number;
   newPositiveSumPlanck: string;
+  productive: boolean;
+  deficitBeforePlanck: string;
+  deficitReductionPlanck: string;
+  deficitAfterPlanck: string;
   knownCandidateCountAfter: number;
   knownPositiveCountAfter: number;
   knownFinalSumPlanckAfter: string;
   remainingDeficitPlanckAfter: string;
+  consecutiveNoNewCandidateWindowsAfter: number;
+  consecutiveUnproductiveWindowsAfter: number;
   proofsCaptured: number;
 }
 
 export interface BackwardRecoveryCheckpoint {
-  schemaVersion: 1;
+  schemaVersion: 2;
   nextCursorEnd: number;
   completedRounds: number;
-  consecutiveEmptyWindows: number;
+  consecutiveNoNewCandidateWindows: number;
+  consecutiveUnproductiveWindows: number;
   knownCandidateCount: number;
   knownPositiveCount: number;
   knownFinalSumPlanck: string;
@@ -106,6 +115,8 @@ export interface BackwardRecoveryCheckpoint {
 export interface BackwardRecoverySummary {
   schemaVersion: 1;
   status: BackwardRecoveryStatus;
+  windowBlocks: number;
+  maxUnproductiveWindows: number;
   baseCandidateCount: number;
   baseCandidateDigest: string;
   baseFinalSumPlanck: string;
@@ -116,6 +127,8 @@ export interface BackwardRecoverySummary {
   sqdCoverageGapStart: number | null;
   sqdCoverageGapEnd: number | null;
   sqdCoverageGapBlocks: number;
+  consecutiveNoNewCandidateWindows: number;
+  consecutiveUnproductiveWindows: number;
   newCandidateCount: number;
   newPositiveCount: number;
   newZeroCount: number;
@@ -127,6 +140,8 @@ export interface BackwardRecoverySummary {
   remainingDeficitPlanck: string;
   proofsCaptured: number;
   proofVerification: 'NOT_RUN';
+  stallReason?: 'NO_FINAL_POSITIVE_PROGRESS';
+  nextPriority?: 'SQD_COVERAGE_GAP';
 }
 
 export interface BackwardRecoveryResult {
@@ -143,6 +158,8 @@ export interface BackwardRecoveryOptions {
   endpointBase?: string;
   sqdEndpoint?: string;
   windowBlocks?: number;
+  maxUnproductiveWindows?: number;
+  /** @deprecated Accepted for compatibility but ignored for stopping decisions. */
   maxEmptyWindows?: number;
   connectTimeoutMs?: number;
   timeoutMs?: number;
@@ -291,6 +308,26 @@ export function classifyFinalBalances(results: readonly FinalBalanceResult[]): {
     positive,
     zero,
     positiveSum: positive.reduce((sum, result) => sum + BigInt(result.balancePlanck), 0n),
+  };
+}
+
+export interface BackwardProgressCounters {
+  consecutiveNoNewCandidateWindows: number;
+  consecutiveUnproductiveWindows: number;
+  productive: boolean;
+}
+
+export function updateBackwardProgressCounters(
+  counters: Omit<BackwardProgressCounters, 'productive'>,
+  newCandidateCount: number,
+  newPositiveSumPlanck: bigint,
+): BackwardProgressCounters {
+  const productive = newPositiveSumPlanck > 0n;
+  return {
+    productive,
+    consecutiveNoNewCandidateWindows:
+      newCandidateCount === 0 ? counters.consecutiveNoNewCandidateWindows + 1 : 0,
+    consecutiveUnproductiveWindows: productive ? 0 : counters.consecutiveUnproductiveWindows + 1,
   };
 }
 
@@ -550,14 +587,21 @@ async function loadBalanceFile(path: string): Promise<Map<string, FinalBalanceRe
   return result;
 }
 
-function parseCheckpoint(value: unknown, path: string): BackwardRecoveryCheckpoint {
-  if (!isObject(value) || value.schemaVersion !== 1) {
+interface ParsedCheckpoint {
+  checkpoint: BackwardRecoveryCheckpoint;
+  migratedFromSchemaVersion: 1 | 2;
+}
+
+function parseCheckpoint(value: unknown, path: string): ParsedCheckpoint {
+  if (!isObject(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2)) {
     throw new FinalStateIdentityMismatchError('Backward checkpoint schema is invalid.', { path });
   }
+  const legacy = value.schemaVersion === 1;
   const numeric = [
     'nextCursorEnd',
     'completedRounds',
-    'consecutiveEmptyWindows',
+    ...(legacy ? ['consecutiveEmptyWindows'] : []),
+    ...(!legacy ? ['consecutiveNoNewCandidateWindows', 'consecutiveUnproductiveWindows'] : []),
     'knownCandidateCount',
     'knownPositiveCount',
     'newCandidateCountTotal',
@@ -590,20 +634,118 @@ function parseCheckpoint(value: unknown, path: string): BackwardRecoveryCheckpoi
     );
   }
   return {
-    schemaVersion: 1,
-    nextCursorEnd: value.nextCursorEnd as number,
-    completedRounds: value.completedRounds as number,
-    consecutiveEmptyWindows: value.consecutiveEmptyWindows as number,
-    knownCandidateCount: value.knownCandidateCount as number,
-    knownPositiveCount: value.knownPositiveCount as number,
-    knownFinalSumPlanck: value.knownFinalSumPlanck,
-    remainingDeficitPlanck: value.remainingDeficitPlanck,
-    newCandidateCountTotal: value.newCandidateCountTotal as number,
-    newPositiveCountTotal: value.newPositiveCountTotal as number,
-    newZeroCountTotal: value.newZeroCountTotal as number,
-    proofsCaptured: value.proofsCaptured as number,
-    ...(typeof value.status === 'string' ? { status: value.status as BackwardRecoveryStatus } : {}),
+    migratedFromSchemaVersion: value.schemaVersion,
+    checkpoint: {
+      schemaVersion: 2,
+      nextCursorEnd: value.nextCursorEnd as number,
+      completedRounds: value.completedRounds as number,
+      consecutiveNoNewCandidateWindows: legacy
+        ? 0
+        : (value.consecutiveNoNewCandidateWindows as number),
+      consecutiveUnproductiveWindows: legacy ? 0 : (value.consecutiveUnproductiveWindows as number),
+      knownCandidateCount: value.knownCandidateCount as number,
+      knownPositiveCount: value.knownPositiveCount as number,
+      knownFinalSumPlanck: value.knownFinalSumPlanck,
+      remainingDeficitPlanck: value.remainingDeficitPlanck,
+      newCandidateCountTotal: value.newCandidateCountTotal as number,
+      newPositiveCountTotal: value.newPositiveCountTotal as number,
+      newZeroCountTotal: value.newZeroCountTotal as number,
+      proofsCaptured: value.proofsCaptured as number,
+      ...(typeof value.status === 'string'
+        ? { status: value.status as BackwardRecoveryStatus }
+        : {}),
+    },
   };
+}
+
+interface RebuiltCounters {
+  consecutiveNoNewCandidateWindows: number;
+  consecutiveUnproductiveWindows: number;
+}
+
+async function rebuildCountersFromRounds(
+  roundsDirectory: string,
+  completedRounds: number,
+  checkpointPath: string,
+): Promise<RebuiltCounters> {
+  const rounds: Array<{ newCandidateCount: number; newPositiveSumPlanck: bigint }> = [];
+  for (let round = 1; round <= completedRounds; round += 1) {
+    const path = join(roundsDirectory, `${String(round).padStart(6, '0')}.json`);
+    if (!(await pathExists(path))) {
+      throw new FinalStateResumeContextMismatchError(
+        'Backward checkpoint migration is missing a completed round result.',
+        { checkpointPath, round, path },
+      );
+    }
+    let value: unknown;
+    try {
+      value = JSON.parse(await readFile(path, 'utf8')) as unknown;
+    } catch {
+      throw new FinalStateResumeContextMismatchError(
+        'Backward checkpoint migration found invalid round JSON.',
+        { checkpointPath, round, path },
+      );
+    }
+    if (
+      !isObject(value) ||
+      !Number.isSafeInteger(value.newCandidateCount) ||
+      (value.newCandidateCount as number) < 0 ||
+      typeof value.newPositiveSumPlanck !== 'string' ||
+      !/^(0|[1-9][0-9]*)$/.test(value.newPositiveSumPlanck)
+    ) {
+      throw new FinalStateResumeContextMismatchError(
+        'Backward checkpoint migration found an invalid round counter.',
+        { checkpointPath, round, path },
+      );
+    }
+    rounds.push({
+      newCandidateCount: value.newCandidateCount as number,
+      newPositiveSumPlanck: BigInt(value.newPositiveSumPlanck),
+    });
+  }
+
+  let consecutiveNoNewCandidateWindows = 0;
+  for (let index = rounds.length - 1; index >= 0; index -= 1) {
+    const round = rounds[index];
+    if (round === undefined || round.newCandidateCount !== 0) break;
+    consecutiveNoNewCandidateWindows += 1;
+  }
+  let consecutiveUnproductiveWindows = 0;
+  for (let index = rounds.length - 1; index >= 0; index -= 1) {
+    const round = rounds[index];
+    if (round === undefined || round.newPositiveSumPlanck !== 0n) break;
+    consecutiveUnproductiveWindows += 1;
+  }
+  return { consecutiveNoNewCandidateWindows, consecutiveUnproductiveWindows };
+}
+
+const LEGACY_ROUND_FIELDS = [
+  'round',
+  'blockStart',
+  'blockEnd',
+  'transferLogCount',
+  'transferAddressCount',
+  'newCandidateCount',
+  'newPositiveCount',
+  'newZeroCount',
+  'newPositiveSumPlanck',
+  'knownCandidateCountAfter',
+  'knownPositiveCountAfter',
+  'knownFinalSumPlanckAfter',
+  'remainingDeficitPlanckAfter',
+  'proofsCaptured',
+] as const;
+
+function matchesExistingRound(existing: string, expected: BackwardRoundResult): boolean {
+  if (existing === json(expected)) return true;
+  try {
+    const value = JSON.parse(existing) as unknown;
+    return (
+      isObject(value) && LEGACY_ROUND_FIELDS.every((field) => value[field] === expected[field])
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function scanBackwardWindow(
@@ -778,6 +920,8 @@ function aggregateSummary(
   committedCandidates: ReadonlySet<string>,
   checkpoint: BackwardRecoveryCheckpoint | undefined,
   totalSupply: bigint,
+  windowBlocks: number,
+  maxUnproductiveWindows: number,
   status: BackwardRecoveryStatus,
   newestScannedBlock: number | null,
   oldestScannedBlock: number | null,
@@ -796,9 +940,11 @@ function aggregateSummary(
     } else newZeroCount += 1;
   }
   const knownSum = base.sum + newPositiveSum;
-  return {
+  const summary: BackwardRecoverySummary = {
     schemaVersion: 1,
     status,
+    windowBlocks,
+    maxUnproductiveWindows,
     baseCandidateCount: base.candidates.size,
     baseCandidateDigest: base.candidateDigest,
     baseFinalSumPlanck: base.sum.toString(10),
@@ -809,6 +955,8 @@ function aggregateSummary(
     sqdCoverageGapStart: coverage.gapStart,
     sqdCoverageGapEnd: coverage.gapEnd,
     sqdCoverageGapBlocks: coverage.gapBlocks,
+    consecutiveNoNewCandidateWindows: checkpoint?.consecutiveNoNewCandidateWindows ?? 0,
+    consecutiveUnproductiveWindows: checkpoint?.consecutiveUnproductiveWindows ?? 0,
     newCandidateCount: newPositiveCount + newZeroCount,
     newPositiveCount,
     newZeroCount,
@@ -821,20 +969,26 @@ function aggregateSummary(
     proofsCaptured,
     proofVerification: 'NOT_RUN',
   };
+  if (status === 'BACKWARD_DISCOVERY_STALLED') {
+    summary.stallReason = 'NO_FINAL_POSITIVE_PROGRESS';
+    if (coverage.gapBlocks > 0) summary.nextPriority = 'SQD_COVERAGE_GAP';
+  }
+  return summary;
 }
 
 export async function runSqdBackwardRecovery(
   options: BackwardRecoveryOptions = {},
 ): Promise<BackwardRecoveryResult> {
   const windowBlocks = options.windowBlocks ?? BACKWARD_DEFAULT_WINDOW_BLOCKS;
-  const maxEmptyWindows = options.maxEmptyWindows ?? BACKWARD_DEFAULT_MAX_EMPTY_WINDOWS;
+  const maxUnproductiveWindows =
+    options.maxUnproductiveWindows ?? BACKWARD_DEFAULT_MAX_UNPRODUCTIVE_WINDOWS;
   const connectTimeoutMs = options.connectTimeoutMs ?? BACKWARD_DEFAULT_CONNECT_TIMEOUT_MS;
   const timeoutMs = options.timeoutMs ?? BACKWARD_DEFAULT_TIMEOUT_MS;
   const storageConcurrency = options.storageConcurrency ?? BACKWARD_DEFAULT_STORAGE_CONCURRENCY;
   const resume = options.resume ?? true;
   const captureProof = options.captureProof ?? true;
   validatePositive(windowBlocks, 'windowBlocks');
-  validatePositive(maxEmptyWindows, 'maxEmptyWindows');
+  validatePositive(maxUnproductiveWindows, 'maxUnproductiveWindows');
   validatePositive(connectTimeoutMs, 'connectTimeoutMs');
   validatePositive(timeoutMs, 'timeoutMs');
   validatePositive(storageConcurrency, 'storageConcurrency', 8);
@@ -858,7 +1012,7 @@ export async function runSqdBackwardRecovery(
     sqdDataset: SQD_DATASET,
     sqdEndpoint: options.sqdEndpoint ?? SQD_ENDPOINT,
     windowBlocks,
-    maxEmptyWindows,
+    maxUnproductiveWindows,
     baseCandidateDigest: base.candidateDigest,
     baseCandidateCount: base.candidates.size,
   };
@@ -890,9 +1044,10 @@ export async function runSqdBackwardRecovery(
   await mkdir(workDirectory, { recursive: true });
   if (resume && (await pathExists(contextFile))) {
     const previous = JSON.parse(await readFile(contextFile, 'utf8')) as Record<string, unknown>;
-    const mismatch = (Object.keys(staticContext) as Array<keyof typeof staticContext>).some(
-      (key) => previous[key] !== context[key],
+    const contextKeys = (Object.keys(staticContext) as Array<keyof typeof staticContext>).filter(
+      (key) => key !== 'maxUnproductiveWindows' || previous[key] !== undefined,
     );
+    const mismatch = contextKeys.some((key) => previous[key] !== context[key]);
     if (mismatch && !options.force) {
       throw new FinalStateResumeContextMismatchError(
         'Backward recovery context differs from the pinned run.',
@@ -975,14 +1130,28 @@ export async function runSqdBackwardRecovery(
   );
   const allKnownCandidates = new Set([...committedCandidates, ...loadedBalances.keys()]);
   let checkpoint: BackwardRecoveryCheckpoint | undefined;
+  let checkpointWasMigrated = false;
   if (resume && (await pathExists(checkpointFile))) {
-    checkpoint = parseCheckpoint(
+    const parsed = parseCheckpoint(
       JSON.parse(await readFile(checkpointFile, 'utf8')),
       checkpointFile,
     );
+    checkpoint = parsed.checkpoint;
+    checkpointWasMigrated = parsed.migratedFromSchemaVersion === 1;
+    if (checkpointWasMigrated) {
+      checkpoint = {
+        ...checkpoint,
+        ...(await rebuildCountersFromRounds(
+          roundsDirectory,
+          checkpoint.completedRounds,
+          checkpointFile,
+        )),
+      };
+    }
   }
 
   if (
+    !checkpointWasMigrated &&
     checkpoint?.status !== undefined &&
     (checkpoint.status === 'SUPPLY_COMPLETE' ||
       checkpoint.status === 'BACKWARD_DISCOVERY_STALLED' ||
@@ -1009,6 +1178,7 @@ export async function runSqdBackwardRecovery(
       );
     }
   }
+  if (checkpointWasMigrated) await writeJson(checkpointFile, checkpoint);
   await mkdir(proofsDirectory, { recursive: true });
   const progress = options.progress ?? (() => undefined);
   const sqdClient =
@@ -1033,7 +1203,8 @@ export async function runSqdBackwardRecovery(
   if (sqdFinalizedHead !== null && cursorEnd > sqdFinalizedHead) {
     cursorEnd = sqdFinalizedHead;
   }
-  let consecutiveEmptyWindows = checkpoint?.consecutiveEmptyWindows ?? 0;
+  let consecutiveNoNewCandidateWindows = checkpoint?.consecutiveNoNewCandidateWindows ?? 0;
+  let consecutiveUnproductiveWindows = checkpoint?.consecutiveUnproductiveWindows ?? 0;
   let completedRounds = checkpoint?.completedRounds ?? 0;
   let oldestScannedBlock: number | null = null;
   let newestScannedBlock: number | null =
@@ -1089,6 +1260,8 @@ export async function runSqdBackwardRecovery(
         allKnownCandidates,
         checkpoint,
         totalSupply,
+        windowBlocks,
+        maxUnproductiveWindows,
         'IN_PROGRESS',
         newestScannedBlock,
         oldestScannedBlock,
@@ -1109,6 +1282,8 @@ export async function runSqdBackwardRecovery(
       allKnownCandidates,
       checkpoint,
       totalSupply,
+      windowBlocks,
+      maxUnproductiveWindows,
       'IN_PROGRESS',
       newestScannedBlock,
       oldestScannedBlock,
@@ -1117,11 +1292,62 @@ export async function runSqdBackwardRecovery(
     ),
   );
 
+  const initialKnownSum =
+    checkpoint === undefined ? base.sum : BigInt(checkpoint.knownFinalSumPlanck);
+  if (initialKnownSum > totalSupply)
+    throw new FinalStateSupplyOverflowError('Backward checkpoint known sum exceeds total supply.', {
+      knownSumPlanck: initialKnownSum.toString(10),
+      totalSupplyPlanck: totalSupply.toString(10),
+    });
+  const initialDeficit = totalSupply - initialKnownSum;
+  const initialTerminalStatus: BackwardRecoveryStatus | undefined =
+    initialDeficit === 0n
+      ? 'SUPPLY_COMPLETE'
+      : consecutiveUnproductiveWindows >= maxUnproductiveWindows
+        ? 'BACKWARD_DISCOVERY_STALLED'
+        : undefined;
+  if (initialTerminalStatus !== undefined && checkpoint !== undefined) {
+    checkpoint = { ...checkpoint, status: initialTerminalStatus };
+    const summary = aggregateSummary(
+      base,
+      loadedBalances,
+      committedCandidates,
+      checkpoint,
+      totalSupply,
+      windowBlocks,
+      maxUnproductiveWindows,
+      initialTerminalStatus,
+      newestScannedBlock,
+      oldestScannedBlock,
+      coverage(),
+      proofsCaptured,
+    );
+    await writeJson(summaryFile, summary);
+    await writeJson(checkpointFile, checkpoint);
+    progress(
+      `CONSECUTIVE_UNPRODUCTIVE_WINDOWS=${consecutiveUnproductiveWindows}/${maxUnproductiveWindows}`,
+    );
+    progress(`CONSECUTIVE_NO_NEW_CANDIDATE_WINDOWS=${consecutiveNoNewCandidateWindows}`);
+    progress(`STATUS=${initialTerminalStatus}`);
+    return { workDirectory, summaryFile, summary };
+  }
+
   while (cursorEnd >= 0) {
     let window = calculateBackwardWindow(cursorEnd, windowBlocks);
     const roundNumber = completedRounds + 1;
     progress(`ROUND=${roundNumber}`);
     progress(`BLOCK_RANGE=${window.blockStart}-${window.blockEnd}`);
+    const knownSumBefore =
+      checkpoint === undefined ? base.sum : BigInt(checkpoint.knownFinalSumPlanck);
+    if (knownSumBefore > totalSupply)
+      throw new FinalStateSupplyOverflowError(
+        'Backward checkpoint known sum exceeds total supply.',
+        {
+          knownSumPlanck: knownSumBefore.toString(10),
+          totalSupplyPlanck: totalSupply.toString(10),
+        },
+      );
+    const deficitBefore = totalSupply - knownSumBefore;
     let scanned: WindowScanResult;
     while (true) {
       scanned = await scanBackwardWindow(sqdClient, window.blockStart, window.blockEnd);
@@ -1161,12 +1387,29 @@ export async function runSqdBackwardRecovery(
         totalSupplyPlanck: totalSupply.toString(10),
       });
     const deficitAfter = totalSupply - knownSumAfter;
+    const deficitReduction = deficitBefore - deficitAfter;
+    if (deficitReduction !== classified.positiveSum)
+      throw new FinalStateIdentityMismatchError(
+        'Backward recovery deficit reduction does not match new positive balances.',
+        {
+          deficitBeforePlanck: deficitBefore.toString(10),
+          deficitAfterPlanck: deficitAfter.toString(10),
+          deficitReductionPlanck: deficitReduction.toString(10),
+          newPositiveSumPlanck: classified.positiveSum.toString(10),
+        },
+      );
     for (const address of newCandidates) {
       committedCandidates.add(address);
       allKnownCandidates.add(address);
     }
-    if (newCandidates.length > 0) consecutiveEmptyWindows = 0;
-    else consecutiveEmptyWindows += 1;
+    const progressCounters = updateBackwardProgressCounters(
+      { consecutiveNoNewCandidateWindows, consecutiveUnproductiveWindows },
+      newCandidates.length,
+      classified.positiveSum,
+    );
+    consecutiveNoNewCandidateWindows = progressCounters.consecutiveNoNewCandidateWindows;
+    consecutiveUnproductiveWindows = progressCounters.consecutiveUnproductiveWindows;
+    const { productive } = progressCounters;
     oldestScannedBlock =
       oldestScannedBlock === null
         ? window.blockStart
@@ -1179,7 +1422,7 @@ export async function runSqdBackwardRecovery(
     const terminalStatus: BackwardRecoveryStatus | undefined =
       deficitAfter === 0n
         ? 'SUPPLY_COMPLETE'
-        : consecutiveEmptyWindows >= maxEmptyWindows
+        : consecutiveUnproductiveWindows >= maxUnproductiveWindows
           ? 'BACKWARD_DISCOVERY_STALLED'
           : window.nextCursorEnd < 0
             ? 'REACHED_GENESIS_WITH_SHORTFALL'
@@ -1194,12 +1437,18 @@ export async function runSqdBackwardRecovery(
       newPositiveCount: classified.positive.length,
       newZeroCount: classified.zero.length,
       newPositiveSumPlanck: classified.positiveSum.toString(10),
+      productive,
+      deficitBeforePlanck: deficitBefore.toString(10),
+      deficitReductionPlanck: deficitReduction.toString(10),
+      deficitAfterPlanck: deficitAfter.toString(10),
       knownCandidateCountAfter: committedCandidates.size,
       knownPositiveCountAfter:
         base.positiveCount +
         [...loadedBalances.values()].filter((result) => BigInt(result.balancePlanck) > 0n).length,
       knownFinalSumPlanckAfter: knownSumAfter.toString(10),
       remainingDeficitPlanckAfter: deficitAfter.toString(10),
+      consecutiveNoNewCandidateWindowsAfter: consecutiveNoNewCandidateWindows,
+      consecutiveUnproductiveWindowsAfter: consecutiveUnproductiveWindows,
       proofsCaptured,
     };
     await persistCandidates(candidatesFile, committedCandidates);
@@ -1207,7 +1456,7 @@ export async function runSqdBackwardRecovery(
     const roundPath = join(roundsDirectory, `${String(roundNumber).padStart(6, '0')}.json`);
     if (await pathExists(roundPath)) {
       const existing = await readFile(roundPath, 'utf8');
-      if (existing !== json(round))
+      if (!matchesExistingRound(existing, round))
         throw new FinalStateIdentityMismatchError('Existing backward round result differs.', {
           round: roundNumber,
         });
@@ -1215,10 +1464,11 @@ export async function runSqdBackwardRecovery(
     completedRounds = roundNumber;
     cursorEnd = window.nextCursorEnd;
     checkpoint = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       nextCursorEnd: cursorEnd,
       completedRounds,
-      consecutiveEmptyWindows,
+      consecutiveNoNewCandidateWindows,
+      consecutiveUnproductiveWindows,
       knownCandidateCount: committedCandidates.size,
       knownPositiveCount: round.knownPositiveCountAfter,
       knownFinalSumPlanck: knownSumAfter.toString(10),
@@ -1238,6 +1488,8 @@ export async function runSqdBackwardRecovery(
         committedCandidates,
         checkpoint,
         totalSupply,
+        windowBlocks,
+        maxUnproductiveWindows,
         summaryStatus,
         newestScannedBlock,
         oldestScannedBlock,
@@ -1256,7 +1508,12 @@ export async function runSqdBackwardRecovery(
     progress(`KNOWN_FINAL_SUM_PLANCK=${knownSumAfter.toString(10)}`);
     progress(`TOTAL_SUPPLY_PLANCK=${totalSupply.toString(10)}`);
     progress(`REMAINING_DEFICIT_PLANCK=${deficitAfter.toString(10)}`);
-    progress(`CONSECUTIVE_EMPTY_WINDOWS=${consecutiveEmptyWindows}/${maxEmptyWindows}`);
+    progress(`DEFICIT_REDUCTION_PLANCK=${deficitReduction.toString(10)}`);
+    progress(`PRODUCTIVE_WINDOW=${productive}`);
+    progress(
+      `CONSECUTIVE_UNPRODUCTIVE_WINDOWS=${consecutiveUnproductiveWindows}/${maxUnproductiveWindows}`,
+    );
+    progress(`CONSECUTIVE_NO_NEW_CANDIDATE_WINDOWS=${consecutiveNoNewCandidateWindows}`);
     progress(`PROOFS_CAPTURED_THIS_ROUND=${classified.positive.length}`);
     progress('PROOF_VERIFICATION=NOT_RUN');
     if (terminalStatus !== undefined) {
@@ -1267,6 +1524,8 @@ export async function runSqdBackwardRecovery(
         committedCandidates,
         checkpoint,
         totalSupply,
+        windowBlocks,
+        maxUnproductiveWindows,
         terminalStatus,
         newestScannedBlock,
         oldestScannedBlock,
@@ -1284,6 +1543,8 @@ export async function runSqdBackwardRecovery(
     committedCandidates,
     checkpoint,
     totalSupply,
+    windowBlocks,
+    maxUnproductiveWindows,
     status,
     newestScannedBlock,
     oldestScannedBlock,

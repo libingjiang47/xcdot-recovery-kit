@@ -3,7 +3,7 @@ import { MOONBEAM_FINAL_BLOCK_NUMBER } from '../final-state/constants.js';
 import {
   BACKWARD_DEFAULT_BASE_WORK,
   BACKWARD_DEFAULT_CONNECT_TIMEOUT_MS,
-  BACKWARD_DEFAULT_MAX_EMPTY_WINDOWS,
+  BACKWARD_DEFAULT_MAX_UNPRODUCTIVE_WINDOWS,
   BACKWARD_DEFAULT_STORAGE_CONCURRENCY,
   BACKWARD_DEFAULT_TIMEOUT_MS,
   BACKWARD_DEFAULT_WINDOW_BLOCKS,
@@ -37,9 +37,13 @@ export function recoverSqdBackwardCommand(): Command {
     String(BACKWARD_DEFAULT_WINDOW_BLOCKS),
   );
   command.option(
+    '--max-unproductive-windows <number>',
+    'Stop after this many windows with zero final-positive contribution',
+    String(BACKWARD_DEFAULT_MAX_UNPRODUCTIVE_WINDOWS),
+  );
+  command.option(
     '--max-empty-windows <number>',
-    'Stop after this many empty windows',
-    String(BACKWARD_DEFAULT_MAX_EMPTY_WINDOWS),
+    'Deprecated compatibility option; does not control recovery stopping',
   );
   command.option(
     '--connect-timeout-ms <milliseconds>',
@@ -78,7 +82,8 @@ export function recoverSqdBackwardCommand(): Command {
       sqdEndpoint?: string;
       endpointBase?: string;
       windowBlocks: string;
-      maxEmptyWindows: string;
+      maxUnproductiveWindows: string;
+      maxEmptyWindows?: string;
       connectTimeoutMs: string;
       timeoutMs: string;
       storageConcurrency: string;
@@ -95,7 +100,13 @@ export function recoverSqdBackwardCommand(): Command {
         ...(options.sqdEndpoint === undefined ? {} : { sqdEndpoint: options.sqdEndpoint }),
         ...(options.endpointBase === undefined ? {} : { endpointBase: options.endpointBase }),
         windowBlocks: positiveInteger(options.windowBlocks, 'window-blocks'),
-        maxEmptyWindows: positiveInteger(options.maxEmptyWindows, 'max-empty-windows'),
+        maxUnproductiveWindows: positiveInteger(
+          options.maxUnproductiveWindows,
+          'max-unproductive-windows',
+        ),
+        ...(options.maxEmptyWindows === undefined
+          ? {}
+          : { maxEmptyWindows: positiveInteger(options.maxEmptyWindows, 'max-empty-windows') }),
         connectTimeoutMs: positiveInteger(options.connectTimeoutMs, 'connect-timeout-ms'),
         timeoutMs: positiveInteger(options.timeoutMs, 'timeout-ms'),
         storageConcurrency: positiveInteger(options.storageConcurrency, 'storage-concurrency'),
@@ -117,6 +128,12 @@ export function recoverSqdBackwardCommand(): Command {
         console.log(`SQD_COVERAGE_GAP_START=${summary.sqdCoverageGapStart ?? 'NONE'}`);
         console.log(`SQD_COVERAGE_GAP_END=${summary.sqdCoverageGapEnd ?? 'NONE'}`);
         console.log(`SQD_COVERAGE_GAP_BLOCKS=${summary.sqdCoverageGapBlocks}`);
+        console.log(
+          `CONSECUTIVE_UNPRODUCTIVE_WINDOWS=${summary.consecutiveUnproductiveWindows}/${summary.maxUnproductiveWindows}`,
+        );
+        console.log(
+          `CONSECUTIVE_NO_NEW_CANDIDATE_WINDOWS=${summary.consecutiveNoNewCandidateWindows}`,
+        );
         console.log(`ROUNDS_COMPLETED=${summary.rounds}`);
         console.log(`OLDEST_SCANNED_BLOCK=${summary.oldestScannedBlock ?? 'NOT_RECORDED'}`);
         console.log(`NEW_CANDIDATES_TOTAL=${summary.newCandidateCount}`);
@@ -129,6 +146,9 @@ export function recoverSqdBackwardCommand(): Command {
         console.log(`PROOFS_CAPTURED=${summary.proofsCaptured}`);
         console.log(`PROOF_VERIFICATION=${summary.proofVerification}`);
         console.log(`STATUS=${summary.status}`);
+        if (summary.stallReason !== undefined) console.log(`STALL_REASON=${summary.stallReason}`);
+        if (summary.nextPriority !== undefined)
+          console.log(`NEXT_PRIORITY=${summary.nextPriority}`);
         console.log(`OUTPUT=${result.workDirectory}`);
       }),
   );

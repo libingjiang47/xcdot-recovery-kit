@@ -58,7 +58,7 @@ xcdot-recovery probe-dwellir-final-state-direct
 xcdot-recovery recover-dwellir-final-state --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --expected-total-supply 2334516727484230 --resume
 xcdot-recovery recover-dwellir-final-state --dataset snapshots/subscan --candidate-extension snapshots/routescan/xcdot-holders.ndjson --expected-total-supply 2334516727484230 --resume
 xcdot-recovery fetch-sqd-xcdot-candidates --from-block 0 --to-block 16796696 --resume
-xcdot-recovery recover-sqd-backward --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --resume
+xcdot-recovery recover-sqd-backward --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --window-blocks 10000 --max-unproductive-windows 20 --resume
 ```
 
 `--rpc` may be omitted only when `MOONBEAM_RPC` is set. No third-party provider is selected automatically.

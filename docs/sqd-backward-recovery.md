@@ -12,8 +12,8 @@ Run the default recovery with:
 node dist/cli/index.js recover-sqd-backward \
   --dataset snapshots/subscan \
   --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv \
-  --window-blocks 100000 \
-  --max-empty-windows 10 \
+  --window-blocks 10000 \
+  --max-unproductive-windows 20 \
   --connect-timeout-ms 120000 \
   --timeout-ms 300000 \
   --storage-concurrency 2 \
@@ -50,9 +50,21 @@ repairs proof gaps without re-reading an already cached balance. The proof files
 only: this command deliberately does not invoke the Rust verifier, does not verify trie roots,
 and never publishes a `VERIFIED` snapshot.
 
-An empty window means that it discovered no previously unknown address, not that it contained
-no Transfer logs. Ten consecutive empty windows produce `BACKWARD_DISCOVERY_STALLED`; reaching
-genesis with a positive deficit produces `REACHED_GENESIS_WITH_SHORTFALL`. If the known final
-balances equal total supply, the command stops immediately with `SUPPLY_COMPLETE`, because all
-balances are non-negative. That is a supply-completeness result, not cryptographic proof
-verification.
+A productive recovery window discovers at least one previously unknown address with a positive
+balance at the pinned final Moonbeam state. A window with zero final-positive contribution is
+unproductive, even when it discovers historical participants. The command records candidate
+novelty separately from recovery progress and produces `BACKWARD_DISCOVERY_STALLED` after
+`max-unproductive-windows` consecutive unproductive windows. This indicates that the current
+backward strategy has found no new final-positive holder in the configured horizon; it does not
+prove that SQD is incorrect or that no missing holder exists. Reaching genesis with a positive
+deficit produces `REACHED_GENESIS_WITH_SHORTFALL`. If the known final balances equal total supply,
+the command stops immediately with `SUPPLY_COMPLETE`, because all balances are non-negative. That
+is a supply-completeness result, not cryptographic proof verification.
+
+`--max-empty-windows` remains accepted for compatibility but is deprecated and does not control
+the recovery stall decision.
+
+Checkpoint schema 2 stores both `consecutiveNoNewCandidateWindows` and
+`consecutiveUnproductiveWindows`. On resume, a schema 1 checkpoint is migrated by reading the
+completed round files from the end backward, so a productive round resets only the
+unproductive suffix counter; historical candidate-only progress remains diagnostic.
