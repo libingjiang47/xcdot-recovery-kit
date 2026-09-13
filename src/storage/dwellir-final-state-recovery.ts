@@ -37,7 +37,9 @@ export const DWELLIR_ENDPOINT_BASE = 'https://api-moonbeam.n.dwellir.com/' as co
 export const XC_DOT_BALANCES_SLOT = 0n;
 export const XC_DOT_TOTAL_SUPPLY_SLOT = 2n;
 const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_CONNECT_TIMEOUT_MS = 20_000;
 const DEFAULT_STORAGE_BATCH_SIZE = 50;
+const DEFAULT_STORAGE_CONCURRENCY = 8;
 const DEFAULT_PROOF_BATCH_SIZE = 32;
 const DEFAULT_RETRIES = 5;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -73,8 +75,10 @@ export interface DwellirFinalStateRecoveryOptions {
   out?: string;
   work?: string;
   timeoutMs?: number;
+  connectTimeoutMs?: number;
   retries?: number;
   storageBatchSize?: number;
+  storageConcurrency?: number;
   proofBatchSize?: number;
   force?: boolean;
   resume?: boolean;
@@ -261,39 +265,73 @@ function parseRpcEnvelope(envelope: unknown, method: string): unknown {
   return record.result;
 }
 
+function validateTimeouts(timeoutMs: number, connectTimeoutMs: number): void {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1) {
+    throw new FinalStateStorageBackendUnsupportedError('timeout-ms must be a positive integer.', {
+      timeoutMs,
+    });
+  }
+  if (!Number.isInteger(connectTimeoutMs) || connectTimeoutMs < 1) {
+    throw new FinalStateStorageBackendUnsupportedError(
+      'connect-timeout-ms must be a positive integer.',
+      { connectTimeoutMs },
+    );
+  }
+  if (connectTimeoutMs > timeoutMs) {
+    throw new FinalStateStorageBackendUnsupportedError(
+      'connect-timeout-ms must not exceed timeout-ms.',
+      { connectTimeoutMs, timeoutMs },
+    );
+  }
+}
+
+export function buildDwellirCurlArguments(options: {
+  endpoint: string;
+  body: JsonRpcRequest | JsonRpcRequest[];
+  timeoutMs: number;
+  connectTimeoutMs?: number;
+  retries: number;
+}): string[] {
+  const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+  validateTimeouts(options.timeoutMs, connectTimeoutMs);
+  const connectTimeoutSeconds = Math.max(1, Math.ceil(connectTimeoutMs / 1000));
+  const timeoutSeconds = Math.max(1, Math.ceil(options.timeoutMs / 1000));
+  return [
+    '--silent',
+    '--show-error',
+    '--connect-timeout',
+    String(connectTimeoutSeconds),
+    '--max-time',
+    String(timeoutSeconds),
+    '--retry',
+    String(Math.max(0, options.retries - 1)),
+    '--retry-connrefused',
+    '--retry-delay',
+    '2',
+    '--request',
+    'POST',
+    '--header',
+    'Content-Type: application/json',
+    '--data-raw',
+    JSON.stringify(options.body),
+    '--write-out',
+    `\n${CURL_STATUS_MARKER}%{http_code}\n`,
+    options.endpoint,
+  ];
+}
+
 async function curlJson(
   endpoint: string,
   body: JsonRpcRequest | JsonRpcRequest[],
   timeoutMs: number,
+  connectTimeoutMs: number,
   retries: number,
   key: string,
 ): Promise<unknown> {
-  const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
   try {
     const result = await execFileAsync(
       'curl',
-      [
-        '--silent',
-        '--show-error',
-        '--connect-timeout',
-        '20',
-        '--max-time',
-        String(timeoutSeconds),
-        '--retry',
-        String(Math.max(0, retries - 1)),
-        '--retry-connrefused',
-        '--retry-delay',
-        '2',
-        '--request',
-        'POST',
-        '--header',
-        'Content-Type: application/json',
-        '--data-raw',
-        JSON.stringify(body),
-        '--write-out',
-        `\n${CURL_STATUS_MARKER}%{http_code}\n`,
-        endpoint,
-      ],
+      buildDwellirCurlArguments({ endpoint, body, timeoutMs, connectTimeoutMs, retries }),
       { maxBuffer: 64 * 1024 * 1024 },
     );
     const marker = `\n${CURL_STATUS_MARKER}`;
@@ -321,19 +359,22 @@ export function createDwellirCurlTransport(options: {
   key: string;
   endpointBase?: string;
   timeoutMs?: number;
+  connectTimeoutMs?: number;
   retries?: number;
 }): DwellirRpcTransport {
   const key = options.key.trim();
   const endpointBase = options.endpointBase ?? DWELLIR_ENDPOINT_BASE;
   const endpoint = `${endpointBase}${encodeURIComponent(key)}`;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
   const retries = options.retries ?? DEFAULT_RETRIES;
+  validateTimeouts(timeoutMs, connectTimeoutMs);
   let nextId = 1;
   return {
     async call(method, params) {
       const id = nextId++;
       const payload: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
-      const response = await curlJson(endpoint, payload, timeoutMs, retries, key);
+      const response = await curlJson(endpoint, payload, timeoutMs, connectTimeoutMs, retries, key);
       return parseRpcEnvelope(response, method);
     },
     async batch(calls) {
@@ -343,7 +384,14 @@ export function createDwellirCurlTransport(options: {
         method: call.method,
         params: call.params,
       }));
-      const response = await curlJson(endpoint, requests, timeoutMs, retries, key);
+      const response = await curlJson(
+        endpoint,
+        requests,
+        timeoutMs,
+        connectTimeoutMs,
+        retries,
+        key,
+      );
       if (!Array.isArray(response)) {
         throw rpcError('batch', 'server did not return a JSON-RPC batch array');
       }
@@ -369,6 +417,7 @@ export function createDwellirCurlTransport(options: {
 async function readStorageBatch(
   transport: DwellirRpcTransport,
   keys: readonly string[],
+  concurrency: number,
 ): Promise<Array<string | null>> {
   try {
     const values = await transport.batch(
@@ -382,7 +431,6 @@ async function readStorageBatch(
     // Some JSON-RPC gateways disable JSON batch requests. Fall back to the same
     // state_getStorage method with modest concurrency rather than 7,288 serial curl processes.
     const values: Array<string | null> = new Array(keys.length);
-    const concurrency = 8;
     for (let offset = 0; offset < keys.length; offset += concurrency) {
       const slice = keys.slice(offset, offset + concurrency);
       const resolved = await Promise.all(
@@ -432,6 +480,7 @@ async function loadOrFetchStorageBatch(
   batchIndex: number,
   keys: readonly string[],
   resume: boolean,
+  storageConcurrency: number,
 ): Promise<StorageFetchBatch> {
   const directory = join(workDirectory, 'storage-batches');
   const path = join(directory, batchFileName(batchIndex));
@@ -448,7 +497,7 @@ async function loadOrFetchStorageBatch(
       // Refetch malformed/incomplete checkpoint.
     }
   }
-  const values = await readStorageBatch(transport, keys);
+  const values = await readStorageBatch(transport, keys, storageConcurrency);
   const batch: StorageFetchBatch = {
     schemaVersion: 1,
     blockHash: MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
@@ -662,13 +711,27 @@ export async function recoverDwellirFinalStateBase(
       `diagnostics/dwellir-final-state-recovery-work/moonbeam-${MOONBEAM_FINAL_BLOCK_NUMBER}`,
   );
   const storageBatchSize = options.storageBatchSize ?? DEFAULT_STORAGE_BATCH_SIZE;
+  const storageConcurrency = options.storageConcurrency ?? DEFAULT_STORAGE_CONCURRENCY;
   const proofBatchSize = options.proofBatchSize ?? DEFAULT_PROOF_BATCH_SIZE;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
   if (!Number.isInteger(storageBatchSize) || storageBatchSize < 1 || storageBatchSize > 200) {
     throw new FinalStateStorageBackendUnsupportedError(
       'Storage batch size must be an integer between 1 and 200.',
       { storageBatchSize },
     );
   }
+  if (
+    !Number.isInteger(storageConcurrency) ||
+    storageConcurrency < 1 ||
+    storageConcurrency > DEFAULT_STORAGE_CONCURRENCY
+  ) {
+    throw new FinalStateStorageBackendUnsupportedError(
+      'Storage concurrency must be an integer between 1 and 8.',
+      { storageConcurrency },
+    );
+  }
+  validateTimeouts(timeoutMs, connectTimeoutMs);
   validateBatchSize(proofBatchSize);
 
   if (options.force) {
@@ -707,7 +770,8 @@ export async function recoverDwellirFinalStateBase(
     createDwellirCurlTransport({
       key: await resolveDwellirKey(options.key, options.keyFile),
       ...(options.endpointBase === undefined ? {} : { endpointBase: options.endpointBase }),
-      timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      timeoutMs,
+      connectTimeoutMs,
       retries: options.retries ?? DEFAULT_RETRIES,
     });
 
@@ -741,6 +805,7 @@ export async function recoverDwellirFinalStateBase(
     0,
     [totalKey.substrateStorageKey, zeroKey.substrateStorageKey],
     resume,
+    storageConcurrency,
   );
   sanity.keys.forEach((key, index) => {
     const value = sanity.values[index];
@@ -791,6 +856,7 @@ export async function recoverDwellirFinalStateBase(
       batchIndex,
       batchKeys,
       resume,
+      storageConcurrency,
     );
     batch.keys.forEach((key, valueIndex) => {
       const value = batch.values[valueIndex];

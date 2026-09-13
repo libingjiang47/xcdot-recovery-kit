@@ -870,6 +870,9 @@ export async function recoverDwellirWithMoonscan(
       key: await resolveDwellirKey(options.key, options.keyFile),
       ...(options.endpointBase === undefined ? {} : { endpointBase: options.endpointBase }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+      ...(options.connectTimeoutMs === undefined
+        ? {}
+        : { connectTimeoutMs: options.connectTimeoutMs }),
       ...(options.retries === undefined ? {} : { retries: options.retries }),
     });
   const cachedTransport = new CachedDwellirTransport(

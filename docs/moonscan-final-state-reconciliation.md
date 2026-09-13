@@ -14,6 +14,9 @@ node dist/cli/index.js recover-dwellir-final-state \
   --dataset snapshots/subscan \
   --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv \
   --expected-total-supply 2334516727484230 \
+  --connect-timeout-ms 120000 \
+  --timeout-ms 300000 \
+  --storage-concurrency 2 \
   --resume
 ```
 

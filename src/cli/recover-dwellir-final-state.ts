@@ -37,8 +37,18 @@ export function recoverDwellirFinalStateCommand(): Command {
   );
   command.option('--key-file <file>', 'Optional local file containing DWELLIR_KEY');
   command.option('--timeout-ms <milliseconds>', 'Per-request curl max time', '120000');
+  command.option(
+    '--connect-timeout-ms <milliseconds>',
+    'Curl connection-establishment max time',
+    '20000',
+  );
   command.option('--retries <count>', 'Curl attempts for transient transport failures', '5');
   command.option('--storage-batch-size <count>', 'state_getStorage JSON-RPC batch size', '50');
+  command.option(
+    '--storage-concurrency <count>',
+    'Fallback state_getStorage concurrency (1-8)',
+    '8',
+  );
   command.option('--proof-batch-size <count>', 'state_getReadProof key batch size', '32');
   command.option('--expected-total-supply <planck>', 'Expected pinned xcDOT total supply');
   command.option('--verifier-binary <path>', 'Optional prebuilt evidence-verifier binary');
@@ -59,8 +69,10 @@ export function recoverDwellirFinalStateCommand(): Command {
       work: string;
       keyFile?: string;
       timeoutMs: string;
+      connectTimeoutMs: string;
       retries: string;
       storageBatchSize: string;
+      storageConcurrency: string;
       proofBatchSize: string;
       expectedTotalSupply?: string;
       verifierBinary?: string;
@@ -76,8 +88,10 @@ export function recoverDwellirFinalStateCommand(): Command {
         work: options.work,
         ...(options.keyFile ? { keyFile: options.keyFile } : {}),
         timeoutMs: positiveInteger(options.timeoutMs, 'timeout-ms'),
+        connectTimeoutMs: positiveInteger(options.connectTimeoutMs, 'connect-timeout-ms'),
         retries: positiveInteger(options.retries, 'retries'),
         storageBatchSize: positiveInteger(options.storageBatchSize, 'storage-batch-size'),
+        storageConcurrency: positiveInteger(options.storageConcurrency, 'storage-concurrency'),
         proofBatchSize: positiveInteger(options.proofBatchSize, 'proof-batch-size'),
         ...(options.expectedTotalSupply
           ? { expectedTotalSupplyPlanck: options.expectedTotalSupply }

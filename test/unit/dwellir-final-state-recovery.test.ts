@@ -6,6 +6,7 @@ import { XC_DOT_XC20_ADDRESS } from '../../src/asset/constants.js';
 import { MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH } from '../../src/final-state/constants.js';
 import { candidateAddressesSha256 } from '../../src/subscan/candidates.js';
 import {
+  buildDwellirCurlArguments,
   recoverDwellirFinalState,
   type DwellirRpcTransport,
 } from '../../src/storage/dwellir-final-state-recovery.js';
@@ -19,6 +20,37 @@ import { encodeU256Storage } from '../../src/storage/solidity.js';
 const TEST_ADDRESS_A = '0x1111111111111111111111111111111111111111';
 const TEST_ADDRESS_B = '0x2222222222222222222222222222222222222222';
 const TEST_ADDRESS_C = '0x3333333333333333333333333333333333333333';
+
+describe('Dwellir curl timeout arguments', () => {
+  const base = {
+    endpoint: 'https://dwellir.invalid/test-key',
+    body: {
+      jsonrpc: '2.0' as const,
+      id: 1,
+      method: 'state_getStorage',
+      params: [],
+    },
+    timeoutMs: 120_000,
+    retries: 5,
+  };
+
+  it('keeps the default connection timeout at 20 seconds', () => {
+    const args = buildDwellirCurlArguments(base);
+    expect(args[args.indexOf('--connect-timeout') + 1]).toBe('20');
+    expect(args[args.indexOf('--max-time') + 1]).toBe('120');
+  });
+
+  it('supports an explicitly extended connection timeout', () => {
+    const args = buildDwellirCurlArguments({ ...base, connectTimeoutMs: 120_000 });
+    expect(args[args.indexOf('--connect-timeout') + 1]).toBe('120');
+  });
+
+  it('rejects a connection timeout longer than the overall timeout', () => {
+    expect(() => buildDwellirCurlArguments({ ...base, connectTimeoutMs: 120_001 })).toThrow(
+      'connect-timeout-ms must not exceed timeout-ms',
+    );
+  });
+});
 
 describe('direct Moonbeam EVM AccountStorages key derivation', () => {
   it('matches the pinned Frontier Blake2_128Concat double-map encoding for xcDOT totalSupply', () => {
