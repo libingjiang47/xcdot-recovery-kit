@@ -23,6 +23,7 @@ import { probeSubscanFinalStateCommand } from './probe-subscan-final-state.js';
 import { probeNownodesFinalStateCommand } from './probe-nownodes-final-state.js';
 import { probeDwellirFinalStateCommand } from './probe-dwellir-final-state.js';
 import { probeDwellirFinalStateDirectCommand } from './probe-dwellir-final-state-direct.js';
+import { recoverDwellirFinalStateCommand } from './recover-dwellir-final-state.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -52,6 +53,7 @@ export function createProgram(): Command {
   program.addCommand(probeNownodesFinalStateCommand());
   program.addCommand(probeDwellirFinalStateCommand());
   program.addCommand(probeDwellirFinalStateDirectCommand());
+  program.addCommand(recoverDwellirFinalStateCommand());
   return program;
 }
 

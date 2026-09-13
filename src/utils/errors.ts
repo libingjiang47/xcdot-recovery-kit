@@ -231,6 +231,13 @@ export class FinalStateBalanceConflictError extends XcDotError {
   }
 }
 
+export class FinalStateBalanceCacheConflictError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_BALANCE_CACHE_CONFLICT', message, details);
+    this.name = 'FinalStateBalanceCacheConflictError';
+  }
+}
+
 export class FinalStateDiscoveryPartialError extends XcDotError {
   constructor(message: string, details: Record<string, string | number | boolean> = {}) {
     super('SUBSCAN_DISCOVERY_PARTIAL', message, details);

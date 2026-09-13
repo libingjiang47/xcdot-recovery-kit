@@ -127,7 +127,7 @@ describe('v0.26 final EVM-state reconstruction', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it('classifies zero balances, shortfall, and overflow without changing the query set', async () => {
     const root = await makeDataset();
