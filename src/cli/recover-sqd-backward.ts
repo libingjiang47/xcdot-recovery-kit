@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { MOONBEAM_FINAL_BLOCK_NUMBER } from '../final-state/constants.js';
 import {
   BACKWARD_DEFAULT_BASE_WORK,
   BACKWARD_DEFAULT_CONNECT_TIMEOUT_MS,
@@ -111,6 +112,11 @@ export function recoverSqdBackwardCommand(): Command {
         console.log(
           `INITIAL_DEFICIT_PLANCK=${BigInt(summary.totalSupplyPlanck) - BigInt(summary.baseFinalSumPlanck)}`,
         );
+        console.log(`MOONBEAM_FINAL_BLOCK=${MOONBEAM_FINAL_BLOCK_NUMBER}`);
+        console.log(`SQD_FINALIZED_HEAD=${summary.sqdFinalizedHead ?? 'UNKNOWN'}`);
+        console.log(`SQD_COVERAGE_GAP_START=${summary.sqdCoverageGapStart ?? 'NONE'}`);
+        console.log(`SQD_COVERAGE_GAP_END=${summary.sqdCoverageGapEnd ?? 'NONE'}`);
+        console.log(`SQD_COVERAGE_GAP_BLOCKS=${summary.sqdCoverageGapBlocks}`);
         console.log(`ROUNDS_COMPLETED=${summary.rounds}`);
         console.log(`OLDEST_SCANNED_BLOCK=${summary.oldestScannedBlock ?? 'NOT_RECORDED'}`);
         console.log(`NEW_CANDIDATES_TOTAL=${summary.newCandidateCount}`);

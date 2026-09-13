@@ -37,6 +37,7 @@ import { parseSqdJsonl, type ParsedSqdStream } from './xcdot-transfer-candidates
 import {
   SQD_DATASET,
   SQD_ENDPOINT,
+  SqdNoContentError,
   type SqdRangeClient,
   createSqdCurlTransport,
 } from './client.js';
@@ -111,6 +112,10 @@ export interface BackwardRecoverySummary {
   rounds: number;
   oldestScannedBlock: number | null;
   newestScannedBlock: number | null;
+  sqdFinalizedHead: number | null;
+  sqdCoverageGapStart: number | null;
+  sqdCoverageGapEnd: number | null;
+  sqdCoverageGapBlocks: number;
   newCandidateCount: number;
   newPositiveCount: number;
   newZeroCount: number;
@@ -160,6 +165,7 @@ interface WindowScanResult {
   transferLogCount: number;
   transferAddressCount: number;
   addresses: Set<string>;
+  availableHead?: number;
 }
 
 interface LoadedBaseState {
@@ -168,6 +174,13 @@ interface LoadedBaseState {
   candidateDigest: string;
   sum: bigint;
   positiveCount: number;
+}
+
+interface SqdCoverageObservation {
+  finalizedHead: number | null;
+  gapStart: number | null;
+  gapEnd: number | null;
+  gapBlocks: number;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -602,7 +615,20 @@ async function scanBackwardWindow(
   let transferLogCount = 0;
   const addresses = new Set<string>();
   while (cursor <= blockEnd) {
-    const response = await client.fetchRange(cursor, blockEnd);
+    let response: string;
+    try {
+      response = await client.fetchRange(cursor, blockEnd);
+    } catch (error) {
+      if (error instanceof SqdNoContentError && error.availableHead !== undefined) {
+        return {
+          transferLogCount,
+          transferAddressCount: addresses.size,
+          addresses,
+          availableHead: error.availableHead,
+        };
+      }
+      throw error;
+    }
     const parsed: ParsedSqdStream = parseSqdJsonl(response);
     if (parsed.lastReturnedBlock < cursor) {
       throw new FinalStateIdentityMismatchError('SQD backward scan made no local progress.', {
@@ -755,6 +781,7 @@ function aggregateSummary(
   status: BackwardRecoveryStatus,
   newestScannedBlock: number | null,
   oldestScannedBlock: number | null,
+  coverage: SqdCoverageObservation,
   proofsCaptured: number,
 ): BackwardRecoverySummary {
   let newPositiveCount = 0;
@@ -778,6 +805,10 @@ function aggregateSummary(
     rounds: checkpoint?.completedRounds ?? 0,
     oldestScannedBlock,
     newestScannedBlock,
+    sqdFinalizedHead: coverage.finalizedHead,
+    sqdCoverageGapStart: coverage.gapStart,
+    sqdCoverageGapEnd: coverage.gapEnd,
+    sqdCoverageGapBlocks: coverage.gapBlocks,
     newCandidateCount: newPositiveCount + newZeroCount,
     newPositiveCount,
     newZeroCount,
@@ -816,7 +847,7 @@ export async function runSqdBackwardRecovery(
   const workDirectory = resolve(options.work ?? BACKWARD_DEFAULT_WORK);
   const base = await loadBaseState(options);
   const totalSupply = BigInt(options.totalSupplyPlanck ?? EXPECTED_XC_DOT_TOTAL_SUPPLY_PLANCK);
-  const context = {
+  const staticContext = {
     schemaVersion: 1,
     finalBlockNumber: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
     finalBlockHash: MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
@@ -831,6 +862,22 @@ export async function runSqdBackwardRecovery(
     baseCandidateDigest: base.candidateDigest,
     baseCandidateCount: base.candidates.size,
   };
+  let sqdFinalizedHead: number | null = null;
+  let sqdCoverageGapStart: number | null = null;
+  let sqdCoverageGapEnd: number | null = null;
+  let sqdCoverageGapBlocks = 0;
+  let context: typeof staticContext & {
+    sqdFinalizedHead: number | null;
+    sqdCoverageGapStart: number | null;
+    sqdCoverageGapEnd: number | null;
+    sqdCoverageGapBlocks: number;
+  } = {
+    ...staticContext,
+    sqdFinalizedHead,
+    sqdCoverageGapStart,
+    sqdCoverageGapEnd,
+    sqdCoverageGapBlocks,
+  };
   const contextFile = join(workDirectory, 'context.json');
   const checkpointFile = join(workDirectory, 'checkpoint.json');
   const candidatesFile = join(workDirectory, 'known-candidates.ndjson');
@@ -843,7 +890,7 @@ export async function runSqdBackwardRecovery(
   await mkdir(workDirectory, { recursive: true });
   if (resume && (await pathExists(contextFile))) {
     const previous = JSON.parse(await readFile(contextFile, 'utf8')) as Record<string, unknown>;
-    const mismatch = (Object.keys(context) as Array<keyof typeof context>).some(
+    const mismatch = (Object.keys(staticContext) as Array<keyof typeof staticContext>).some(
       (key) => previous[key] !== context[key],
     );
     if (mismatch && !options.force) {
@@ -854,6 +901,47 @@ export async function runSqdBackwardRecovery(
         },
       );
     }
+    const observedHead = previous.sqdFinalizedHead;
+    if (
+      observedHead !== null &&
+      observedHead !== undefined &&
+      (!Number.isSafeInteger(observedHead) || (observedHead as number) < 0)
+    ) {
+      throw new FinalStateResumeContextMismatchError(
+        'Backward recovery context contains an invalid SQD finalized head.',
+        { path: contextFile },
+      );
+    }
+    sqdFinalizedHead = (observedHead as number | null | undefined) ?? null;
+    const observedGapStart = previous.sqdCoverageGapStart;
+    const observedGapEnd = previous.sqdCoverageGapEnd;
+    const observedGapBlocks = previous.sqdCoverageGapBlocks;
+    if (
+      (observedGapStart !== null &&
+        observedGapStart !== undefined &&
+        (!Number.isSafeInteger(observedGapStart) || (observedGapStart as number) < 0)) ||
+      (observedGapEnd !== null &&
+        observedGapEnd !== undefined &&
+        (!Number.isSafeInteger(observedGapEnd) || (observedGapEnd as number) < 0)) ||
+      (observedGapBlocks !== null &&
+        observedGapBlocks !== undefined &&
+        (!Number.isSafeInteger(observedGapBlocks) || (observedGapBlocks as number) < 0))
+    ) {
+      throw new FinalStateResumeContextMismatchError(
+        'Backward recovery context contains an invalid SQD coverage gap.',
+        { path: contextFile },
+      );
+    }
+    sqdCoverageGapStart = (observedGapStart as number | null | undefined) ?? null;
+    sqdCoverageGapEnd = (observedGapEnd as number | null | undefined) ?? null;
+    sqdCoverageGapBlocks = (observedGapBlocks as number | undefined) ?? 0;
+    context = {
+      ...staticContext,
+      sqdFinalizedHead,
+      sqdCoverageGapStart,
+      sqdCoverageGapEnd,
+      sqdCoverageGapBlocks,
+    };
   }
   await writeJson(contextFile, context);
 
@@ -942,6 +1030,9 @@ export async function runSqdBackwardRecovery(
   }
   const initialProofCount = await countProofs(proofsDirectory, loadedBalances.values());
   let cursorEnd = checkpoint?.nextCursorEnd ?? Number(MOONBEAM_FINAL_BLOCK_NUMBER);
+  if (sqdFinalizedHead !== null && cursorEnd > sqdFinalizedHead) {
+    cursorEnd = sqdFinalizedHead;
+  }
   let consecutiveEmptyWindows = checkpoint?.consecutiveEmptyWindows ?? 0;
   let completedRounds = checkpoint?.completedRounds ?? 0;
   let oldestScannedBlock: number | null = null;
@@ -959,6 +1050,57 @@ export async function runSqdBackwardRecovery(
         : newestScannedBlock;
   }
   let proofsCaptured = Math.max(initialProofCount, checkpoint?.proofsCaptured ?? 0);
+  const coverage = (): SqdCoverageObservation => ({
+    finalizedHead: sqdFinalizedHead,
+    gapStart: sqdCoverageGapStart,
+    gapEnd: sqdCoverageGapEnd,
+    gapBlocks: sqdCoverageGapBlocks,
+  });
+  const recordSqdCoverage = async (availableHead: number): Promise<void> => {
+    if (availableHead > Number(MOONBEAM_FINAL_BLOCK_NUMBER)) {
+      throw new FinalStateIdentityMismatchError(
+        'SQD finalized head exceeds the pinned Moonbeam final block.',
+        { availableHead, finalBlockNumber: Number(MOONBEAM_FINAL_BLOCK_NUMBER) },
+      );
+    }
+    sqdFinalizedHead = availableHead;
+    if (availableHead < Number(MOONBEAM_FINAL_BLOCK_NUMBER)) {
+      sqdCoverageGapStart = availableHead + 1;
+      sqdCoverageGapEnd = Number(MOONBEAM_FINAL_BLOCK_NUMBER);
+      sqdCoverageGapBlocks = sqdCoverageGapEnd - sqdCoverageGapStart + 1;
+    } else {
+      sqdCoverageGapStart = null;
+      sqdCoverageGapEnd = null;
+      sqdCoverageGapBlocks = 0;
+    }
+    context = {
+      ...staticContext,
+      sqdFinalizedHead,
+      sqdCoverageGapStart,
+      sqdCoverageGapEnd,
+      sqdCoverageGapBlocks,
+    };
+    await writeJson(contextFile, context);
+    await writeJson(
+      summaryFile,
+      aggregateSummary(
+        base,
+        loadedBalances,
+        allKnownCandidates,
+        checkpoint,
+        totalSupply,
+        'IN_PROGRESS',
+        newestScannedBlock,
+        oldestScannedBlock,
+        coverage(),
+        proofsCaptured,
+      ),
+    );
+    progress(`SQD_FINALIZED_HEAD=${availableHead}`);
+    progress(`SQD_COVERAGE_GAP_START=${sqdCoverageGapStart ?? 'NONE'}`);
+    progress(`SQD_COVERAGE_GAP_END=${sqdCoverageGapEnd ?? 'NONE'}`);
+    progress(`SQD_COVERAGE_GAP_BLOCKS=${sqdCoverageGapBlocks}`);
+  };
   await writeJson(
     summaryFile,
     aggregateSummary(
@@ -970,16 +1112,25 @@ export async function runSqdBackwardRecovery(
       'IN_PROGRESS',
       newestScannedBlock,
       oldestScannedBlock,
+      coverage(),
       proofsCaptured,
     ),
   );
 
   while (cursorEnd >= 0) {
-    const window = calculateBackwardWindow(cursorEnd, windowBlocks);
+    let window = calculateBackwardWindow(cursorEnd, windowBlocks);
     const roundNumber = completedRounds + 1;
     progress(`ROUND=${roundNumber}`);
     progress(`BLOCK_RANGE=${window.blockStart}-${window.blockEnd}`);
-    const scanned = await scanBackwardWindow(sqdClient, window.blockStart, window.blockEnd);
+    let scanned: WindowScanResult;
+    while (true) {
+      scanned = await scanBackwardWindow(sqdClient, window.blockStart, window.blockEnd);
+      if (scanned.availableHead === undefined || scanned.availableHead >= window.blockStart) break;
+      await recordSqdCoverage(scanned.availableHead);
+      cursorEnd = Math.min(cursorEnd, scanned.availableHead);
+      window = calculateBackwardWindow(cursorEnd, windowBlocks);
+      progress(`BLOCK_RANGE=${window.blockStart}-${window.blockEnd}`);
+    }
     const newCandidates = selectNewCandidates(scanned.addresses, committedCandidates);
     const missingBalances = newCandidates.filter((address) => !loadedBalances.has(address));
     await processBalances(
@@ -1090,6 +1241,7 @@ export async function runSqdBackwardRecovery(
         summaryStatus,
         newestScannedBlock,
         oldestScannedBlock,
+        coverage(),
         proofsCaptured,
       ),
     );
@@ -1118,6 +1270,7 @@ export async function runSqdBackwardRecovery(
         terminalStatus,
         newestScannedBlock,
         oldestScannedBlock,
+        coverage(),
         proofsCaptured,
       );
       return { workDirectory, summaryFile, summary };
@@ -1134,6 +1287,7 @@ export async function runSqdBackwardRecovery(
     status,
     newestScannedBlock,
     oldestScannedBlock,
+    coverage(),
     proofsCaptured,
   );
   return { workDirectory, summaryFile, summary };

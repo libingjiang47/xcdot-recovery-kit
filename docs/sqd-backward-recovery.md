@@ -38,6 +38,12 @@ proofs/
 summary.json
 ```
 
+If SQD returns HTTP 204 above its available finalized head, the transport reads
+`x-sqd-finalized-head-number`. The recovery then clamps its first backward window to that
+head and records `sqdFinalizedHead`, `sqdCoverageGapStart`, `sqdCoverageGapEnd`, and
+`sqdCoverageGapBlocks` in `context.json` and `summary.json`. The uncovered gap is not treated
+as an empty historical window.
+
 Persistence advances the backward cursor only after balances, positive proof captures,
 candidate membership, round result, and summary are durable. Resume reuses those files and
 repairs proof gaps without re-reading an already cached balance. The proof files are evidence

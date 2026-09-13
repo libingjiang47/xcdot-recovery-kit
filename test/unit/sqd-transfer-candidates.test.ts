@@ -183,6 +183,22 @@ describe('SQD xcDOT Transfer candidate discovery', () => {
     ]);
   });
 
+  it('exposes the SQD finalized head when the portal returns HTTP 204', async () => {
+    const transport = createSqdCurlTransport({
+      endpoint: 'https://sqd.example/stream',
+      httpExecutor: async () => ({
+        httpStatus: 204,
+        body: '',
+        headers: { 'x-sqd-finalized-head-number': '16669568' },
+      }),
+    });
+    await expect(transport.fetchRange(16_696_697, 16_796_696)).rejects.toMatchObject({
+      name: 'SqdNoContentError',
+      availableHead: 16_669_568,
+      httpStatus: 204,
+    });
+  });
+
   it('advances a partial response from the last returned header, not requestedEnd', async () => {
     const root = await outputRoot('partial');
     try {

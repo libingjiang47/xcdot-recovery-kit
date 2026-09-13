@@ -15,7 +15,7 @@ import {
   type DwellirRpcTransport,
   type FinalBalanceResult,
 } from '../../src/sqd/backward-recovery.js';
-import { TRANSFER_TOPIC0, type SqdRangeClient } from '../../src/sqd/client.js';
+import { SqdNoContentError, TRANSFER_TOPIC0, type SqdRangeClient } from '../../src/sqd/client.js';
 import { deriveBalanceAccountStoragesKeyDirect } from '../../src/storage/substrate-evm.js';
 import { encodeU256Storage } from '../../src/storage/solidity.js';
 
@@ -167,6 +167,42 @@ describe('SQD backward incremental recovery', () => {
         await readFile(join(root, 'work', 'proofs', `${ADDRESS_E}.json`), 'utf8'),
       ) as { stateRoot: string };
       expect(proof.stateRoot).toBe(MOONBEAM_FINAL_SUBSTRATE_STATE_ROOT);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('clamps an above-head 204 response and records the uncovered top range', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'xcdot-sqd-backward-clamp-'));
+    try {
+      const base = baseFixture([[ADDRESS_A, 1n]]);
+      const newPositive = candidateBalance(ADDRESS_D, 1n);
+      const transport = makeTransport(
+        new Map([[newPositive.substrateStorageKey, newPositive.rawValue]]),
+      );
+      const calls: string[] = [];
+      const sqdClient: SqdRangeClient = {
+        async fetchRange(fromBlock, toBlock) {
+          calls.push(`${fromBlock}-${toBlock}`);
+          if (calls.length === 1) throw new SqdNoContentError(16_669_568);
+          return response(fromBlock, toBlock, [transfer(ADDRESS_A, ADDRESS_D)]);
+        },
+      };
+      const result = await runSqdBackwardRecovery({
+        work: join(root, 'work'),
+        baseCandidates: base.candidates,
+        baseBalances: base.balances,
+        totalSupplyPlanck: '2',
+        windowBlocks: 100_000,
+        transport,
+        sqdClient,
+      });
+      expect(calls).toEqual(['16696697-16796696', '16569569-16669568']);
+      expect(result.summary.status).toBe('SUPPLY_COMPLETE');
+      expect(result.summary.sqdFinalizedHead).toBe(16_669_568);
+      expect(result.summary.sqdCoverageGapStart).toBe(16_669_569);
+      expect(result.summary.sqdCoverageGapEnd).toBe(16_796_696);
+      expect(result.summary.sqdCoverageGapBlocks).toBe(127_128);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

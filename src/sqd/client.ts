@@ -1,4 +1,7 @@
 import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { URL } from 'node:url';
 import { SqdCandidateDiscoveryError } from '../utils/errors.js';
@@ -16,6 +19,7 @@ export const TRANSFER_TOPIC0 =
 export interface SqdHttpResponse {
   httpStatus: number;
   body: string;
+  headers?: Record<string, string>;
 }
 
 export type SqdHttpExecutor = (
@@ -37,6 +41,16 @@ export class SqdRpcError extends Error {
     this.name = 'SqdRpcError';
     this.transient = options.transient ?? false;
     this.httpStatus = options.httpStatus;
+  }
+}
+
+export class SqdNoContentError extends SqdRpcError {
+  readonly availableHead: number | undefined;
+
+  constructor(availableHead?: number) {
+    super('SQD returned HTTP 204 No Content.', { httpStatus: 204 });
+    this.name = 'SqdNoContentError';
+    this.availableHead = availableHead;
   }
 }
 
@@ -119,6 +133,7 @@ export function buildSqdCurlArguments(options: {
   endpoint: string;
   body: string;
   timeoutMs: number;
+  dumpHeaderPath?: string;
 }): string[] {
   if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs < 1) {
     throw inputError('SQD timeout must be a positive safe integer.', {
@@ -141,8 +156,26 @@ export function buildSqdCurlArguments(options: {
     options.body,
     '--write-out',
     `\n${CURL_STATUS_MARKER}%{http_code}\n`,
+    ...(options.dumpHeaderPath === undefined ? [] : ['--dump-header', options.dumpHeaderPath]),
     options.endpoint,
   ];
+}
+
+function parseResponseHeaders(text: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const separator = line.indexOf(':');
+    if (separator <= 0) continue;
+    headers[line.slice(0, separator).trim().toLowerCase()] = line.slice(separator + 1).trim();
+  }
+  return headers;
+}
+
+function parseAvailableHead(headers: Readonly<Record<string, string>>): number | undefined {
+  const value = headers['x-sqd-finalized-head-number'];
+  if (value === undefined || !/^\d+$/.test(value)) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
 async function defaultHttpExecutor(
@@ -150,10 +183,12 @@ async function defaultHttpExecutor(
   body: string,
   timeoutMs: number,
 ): Promise<SqdHttpResponse> {
+  const headerDirectory = await mkdtemp(join(tmpdir(), 'xcdot-sqd-headers-'));
+  const headerPath = join(headerDirectory, 'headers.txt');
   try {
     const result = await execFileAsync(
       'curl',
-      buildSqdCurlArguments({ endpoint, body, timeoutMs }),
+      buildSqdCurlArguments({ endpoint, body, timeoutMs, dumpHeaderPath: headerPath }),
       { maxBuffer: 256 * 1024 * 1024 },
     );
     const marker = `\n${CURL_STATUS_MARKER}`;
@@ -164,7 +199,8 @@ async function defaultHttpExecutor(
     if (!Number.isInteger(httpStatus) || httpStatus < 100 || httpStatus > 599) {
       throw new SqdRpcError('SQD curl returned an invalid HTTP status.', { transient: true });
     }
-    return { httpStatus, body: result.stdout.slice(0, markerIndex) };
+    const headers = parseResponseHeaders(await readFile(headerPath, 'utf8'));
+    return { httpStatus, body: result.stdout.slice(0, markerIndex), headers };
   } catch (error) {
     if (error instanceof SqdRpcError) throw error;
     const child = error as { message?: string; stderr?: string };
@@ -172,6 +208,8 @@ async function defaultHttpExecutor(
       [child.message, child.stderr].filter((item): item is string => Boolean(item)).join('\n'),
       { transient: true },
     );
+  } finally {
+    await rm(headerDirectory, { recursive: true, force: true });
   }
 }
 
@@ -213,6 +251,9 @@ export function createSqdCurlTransport(
       const response = await retrySqdRequest(
         async () => {
           const raw = await httpExecutor(endpoint, body, timeoutMs);
+          if (raw.httpStatus === 204) {
+            throw new SqdNoContentError(parseAvailableHead(raw.headers ?? {}));
+          }
           if (raw.httpStatus < 200 || raw.httpStatus >= 300) {
             throw new SqdRpcError(`SQD HTTP ${raw.httpStatus}: ${bodyPreview(raw.body)}`, {
               transient: retryableHttpStatus(raw.httpStatus),
