@@ -217,6 +217,13 @@ export class SubscanFinalStateProbeError extends XcDotError {
   }
 }
 
+export class CandidateExtensionImportError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('CANDIDATE_EXTENSION_IMPORT_ERROR', message, details);
+    this.name = 'CandidateExtensionImportError';
+  }
+}
+
 export class FinalStateResumeContextMismatchError extends XcDotError {
   constructor(message: string, details: Record<string, string | number | boolean> = {}) {
     super('FINAL_STATE_RESUME_CONTEXT_MISMATCH', message, details);

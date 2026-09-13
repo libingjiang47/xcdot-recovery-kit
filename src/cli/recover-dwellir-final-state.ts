@@ -21,10 +21,10 @@ export function recoverDwellirFinalStateCommand(): Command {
     'Moonscan holder CSV used for candidate address discovery',
   );
   command.option(
-    '--candidate-diff-out <directory>',
-    'Diagnostic candidate reconciliation output',
-    'diagnostics/moonscan-diff',
+    '--candidate-extension <file>',
+    'Generic NDJSON candidate address extension; balances are ignored',
   );
+  command.option('--candidate-diff-out <directory>', 'Diagnostic candidate reconciliation output');
   command.option(
     '--out <directory>',
     'Verified final-state artifact output',
@@ -64,7 +64,8 @@ export function recoverDwellirFinalStateCommand(): Command {
     async (options: {
       dataset: string;
       moonscanCsv?: string;
-      candidateDiffOut: string;
+      candidateExtension?: string;
+      candidateDiffOut?: string;
       out: string;
       work: string;
       keyFile?: string;
@@ -80,10 +81,14 @@ export function recoverDwellirFinalStateCommand(): Command {
       forceSourceChange: boolean;
       resume: boolean;
     }) => {
+      if (options.moonscanCsv && options.candidateExtension) {
+        throw new Error('--moonscan-csv and --candidate-extension are mutually exclusive.');
+      }
       const recoveryOptions: DwellirFinalStateRecoveryOptions = {
         dataset: options.dataset,
         ...(options.moonscanCsv ? { moonscanCsv: options.moonscanCsv } : {}),
-        candidateDiffOut: options.candidateDiffOut,
+        ...(options.candidateExtension ? { candidateExtension: options.candidateExtension } : {}),
+        ...(options.candidateDiffOut ? { candidateDiffOut: options.candidateDiffOut } : {}),
         out: options.out,
         work: options.work,
         ...(options.keyFile ? { keyFile: options.keyFile } : {}),

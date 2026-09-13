@@ -332,4 +332,104 @@ describe('direct Moonbeam EVM AccountStorages key derivation', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('uses a generic candidate extension and queries only its uncached addresses', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'xcdot-generic-extension-recovery-test-'));
+    const dataset = join(root, 'dataset');
+    const extension = join(root, 'extension.ndjson');
+    const output = join(root, 'output');
+    const work = join(root, 'work');
+    const diff = join(root, 'diff');
+    try {
+      await mkdir(dataset, { recursive: true });
+      await writeFile(
+        join(dataset, 'provenance.ndjson'),
+        JSON.stringify({ address: TEST_ADDRESS_A }) + '\n',
+      );
+      await writeFile(
+        extension,
+        [
+          JSON.stringify({ address: TEST_ADDRESS_A }),
+          JSON.stringify({ address: TEST_ADDRESS_C }),
+        ].join('\n') + '\n',
+      );
+
+      const totalKey = deriveTotalSupplyAccountStoragesKeyDirect(XC_DOT_XC20_ADDRESS, 2n);
+      const zeroKey = deriveBalanceAccountStoragesKeyDirect(
+        XC_DOT_XC20_ADDRESS,
+        '0x0000000000000000000000000000000000000000',
+        0n,
+      );
+      const firstKey = deriveBalanceAccountStoragesKeyDirect(
+        XC_DOT_XC20_ADDRESS,
+        TEST_ADDRESS_A,
+        0n,
+      );
+      const secondKey = deriveBalanceAccountStoragesKeyDirect(
+        XC_DOT_XC20_ADDRESS,
+        TEST_ADDRESS_C,
+        0n,
+      );
+      const cachedDirectory = join(work, 'storage-batches');
+      await mkdir(cachedDirectory, { recursive: true });
+      await writeFile(
+        join(cachedDirectory, 'batch-000000.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          blockHash: MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
+          batchIndex: 0,
+          keys: [
+            totalKey.substrateStorageKey,
+            zeroKey.substrateStorageKey,
+            firstKey.substrateStorageKey,
+          ],
+          values: [encodeU256Storage(3n), null, encodeU256Storage(1n)],
+        }),
+      );
+
+      const liveReads: string[] = [];
+      const values = new Map([[secondKey.substrateStorageKey, encodeU256Storage(2n)]]);
+      const transport: DwellirRpcTransport = {
+        async batch(calls) {
+          return calls.map((call) => {
+            liveReads.push(String(call.params[0]));
+            return values.get(String(call.params[0])) ?? null;
+          });
+        },
+        async call(method) {
+          if (method === 'state_getReadProof') {
+            return { at: MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH, proof: ['0xaa'] };
+          }
+          throw new Error(`unexpected method ${method}`);
+        },
+      };
+      let verifierCalls = 0;
+      const result = await recoverDwellirFinalState({
+        dataset,
+        candidateExtension: extension,
+        candidateDiffOut: diff,
+        out: output,
+        work,
+        transport,
+        expectedSubscanCandidateCount: 1,
+        expectedSubscanCandidateSha256: candidateAddressesSha256([TEST_ADDRESS_A]),
+        expectedExistingCachedAddressCount: 1,
+        expectedExistingFinalSumPlanck: '1',
+        expectedTotalSupplyPlanck: '3',
+        storageBatchSize: 2,
+        proofBatchSize: 2,
+        offlineVerifier: async () => {
+          verifierCalls += 1;
+          return { stdout: 'FINAL_STATE_OFFLINE_VERIFICATION=PASS' };
+        },
+      });
+      expect(result.status).toBe('VERIFIED');
+      expect(result.candidateCount).toBe(2);
+      expect(result.holderCount).toBe(2);
+      expect(liveReads).toEqual([secondKey.substrateStorageKey]);
+      expect(verifierCalls).toBe(3);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

@@ -70,6 +70,7 @@ export interface DwellirFinalStateRecoveryOptions {
   endpointBase?: string;
   dataset?: string;
   moonscanCsv?: string;
+  candidateExtension?: string;
   candidateDiffOut?: string;
   forceSourceChange?: boolean;
   out?: string;
@@ -1145,6 +1146,12 @@ export async function recoverDwellirFinalState(
   if (options.moonscanCsv !== undefined) {
     const { recoverDwellirWithMoonscan } = await import('./moonscan-final-state-reconciliation.js');
     return recoverDwellirWithMoonscan(options);
+  }
+  if (options.candidateExtension !== undefined) {
+    const { recoverDwellirWithCandidateExtension } = await import(
+      './candidate-extension-final-state-reconciliation.js'
+    );
+    return recoverDwellirWithCandidateExtension(options);
   }
   return recoverDwellirFinalStateBase(options);
 }

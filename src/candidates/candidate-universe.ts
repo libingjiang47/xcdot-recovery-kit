@@ -1,9 +1,9 @@
 import { sha256Hex } from '../snapshot/digest.js';
 import { candidateAddressesSha256, type CandidateDiscovery } from '../subscan/candidates.js';
 import { compareCanonicalStrings } from '../utils/order.js';
-import type { MoonscanImport } from './moonscan.js';
+import type { CandidateExtensionImport } from './candidate-extension.js';
 
-export type CandidateSource = 'moonscan' | 'subscan';
+export type CandidateSource = string;
 
 export interface CandidateAddressRecord {
   address: string;
@@ -15,9 +15,12 @@ export interface CandidateUniverse {
   addresses: string[];
   subscanOnly: string[];
   moonscanOnly: string[];
+  extensionOnly: string[];
   intersection: string[];
   subscanAddressSha256: string;
   moonscanOnlySha256: string;
+  extensionOnlySha256: string;
+  extensionSource: string;
   unionSha256: string;
 }
 
@@ -35,26 +38,27 @@ export function serializeCandidateProvenance(records: readonly CandidateAddressR
 
 export function buildCandidateUniverse(
   subscan: CandidateDiscovery,
-  moonscan: MoonscanImport,
+  extension: Pick<CandidateExtensionImport, 'records'>,
+  extensionSource = 'moonscan',
 ): CandidateUniverse {
   const subscanAddresses = new Set(subscan.addresses);
-  const moonscanAddresses = new Set(moonscan.records.map((record) => record.address));
-  const addresses = [...new Set([...subscanAddresses, ...moonscanAddresses])].sort(
+  const extensionAddresses = new Set(extension.records.map((record) => record.address));
+  const addresses = [...new Set([...subscanAddresses, ...extensionAddresses])].sort(
     compareCanonicalStrings,
   );
   const subscanOnly = [...subscanAddresses]
-    .filter((address) => !moonscanAddresses.has(address))
+    .filter((address) => !extensionAddresses.has(address))
     .sort(compareCanonicalStrings);
-  const moonscanOnly = [...moonscanAddresses]
+  const extensionOnly = [...extensionAddresses]
     .filter((address) => !subscanAddresses.has(address))
     .sort(compareCanonicalStrings);
   const intersection = [...subscanAddresses]
-    .filter((address) => moonscanAddresses.has(address))
+    .filter((address) => extensionAddresses.has(address))
     .sort(compareCanonicalStrings);
   const records = addresses.map((address) => ({
     address,
     sources: [
-      ...(moonscanAddresses.has(address) ? (['moonscan'] as const) : []),
+      ...(extensionAddresses.has(address) ? ([extensionSource] as const) : []),
       ...(subscanAddresses.has(address) ? (['subscan'] as const) : []),
     ],
   }));
@@ -62,10 +66,13 @@ export function buildCandidateUniverse(
     records,
     addresses,
     subscanOnly,
-    moonscanOnly,
+    moonscanOnly: extensionOnly,
+    extensionOnly,
     intersection,
     subscanAddressSha256: candidateAddressesSha256(subscan.addresses),
-    moonscanOnlySha256: candidateAddressesSha256(moonscanOnly),
+    moonscanOnlySha256: candidateAddressesSha256(extensionOnly),
+    extensionOnlySha256: candidateAddressesSha256(extensionOnly),
+    extensionSource,
     unionSha256: candidateAddressesSha256(addresses),
   };
 }
