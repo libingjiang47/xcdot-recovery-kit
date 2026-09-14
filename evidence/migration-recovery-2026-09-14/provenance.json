@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-14",
+  "timezone": "Asia/Shanghai",
+  "code": {
+    "repository": "libingjiang47/xcdot-recovery-kit",
+    "branch": "codex/subscan-final-state-probe",
+    "commit": "5c99ac7fbfb6c74c074720db2d280d425d38ad0d",
+    "tag": "evidence/migration-recovery-v1"
+  },
+  "providers": {
+    "candidateLogs": "OnFinality EVM log source",
+    "finalState": "Dwellir Moonbeam Substrate state",
+    "proofVerification": "not run"
+  },
+  "pinnedState": {
+    "blockNumber": 16796696,
+    "substrateBlockHash": "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f",
+    "stateRoot": "0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb",
+    "evmBlockHash": "0xc57e761b29c882d70c77ec21ee6aa74dda874aebc78bb9c5d3c4a6a577461c10"
+  },
+  "sourceArtifacts": {
+    "subscanRawFiles": 73,
+    "subscanRawRows": 7290,
+    "subscanValidRows": 7289,
+    "subscanUniqueValidAddresses": 7288,
+    "migrationZeroMintLogRange": "11060000-11100000",
+    "migrationZeroMintLogRows": 11886,
+    "migrationMintCandidateRows": 11786,
+    "migrationCandidateDuplicates": 0
+  },
+  "limitations": [
+    "The migration candidate source is address discovery evidence; its balance fields are not authoritative.",
+    "The interactive recovery stdout was not preserved as a standalone log; durable JSON summaries and raw records are retained.",
+    "The remaining 9,927,370,122 planck deficit prevents VERIFIED or CANONICAL classification."
+  ]
+}

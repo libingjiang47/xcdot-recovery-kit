@@ -2,6 +2,13 @@
 
 The snapshot path records chain facts only. It does not produce a recovery eligibility list.
 
+Migration-era recovery evidence follows the same boundary: Subscan, Moonscan,
+SQD, explorer data, and EVM Transfer logs discover candidate H160 addresses
+only. They do not supply authoritative final balances. Final balances must be
+read from the pinned Moonbeam state and, for a proof-ready result, verified by
+read proofs against the pinned state root. The current non-canonical migration
+evidence is indexed in [migration-era holder recovery](migration-era-holder-recovery.md).
+
 ## Pinned state
 
 Every inspection, extraction, and verification command requires a block hash. The block header supplies the block number, parent hash, and state root. The runtime version and genesis hash are recorded alongside them. A block number alone is not sufficient, and `latest` is never used for canonical output.
