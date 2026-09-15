@@ -1,0 +1,188 @@
+name: Deploy xcDOT Snapshot to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build verified static snapshot
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Build TypeScript
+        run: pnpm build
+
+      - name: Verify frozen release offline
+        run: pnpm verify:release
+
+      - name: Verify release reproducibility
+        run: git diff --exit-code -- data/snapshot.json SHA256SUMS
+
+      - name: Verify release hashes
+        run: sha256sum -c SHA256SUMS
+
+      - name: Build static frontend data
+        run: pnpm web:build
+
+      - name: Verify Pages output
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f web/index.html
+          test -f web/404.html
+          test -f web/app.js
+          test -f web/styles.css
+
+          test -f web/data/snapshot.json
+          test -f web/data/statistics.json
+          test -f web/data/holders-index.json
+          test -f web/data/holders-ranked.json
+          test -f web/data/evidence-index.json
+          test -f web/data/manifest.json
+          test -f web/data/holders.csv
+          test -f web/data/holders.jsonl
+          test -f web/data/SHA256SUMS
+
+          PROOF_COUNT="$(find web/data/proofs/balance -type f -name 'balance-*.json' | wc -l)"
+          if [ "${PROOF_COUNT}" -ne 93 ]; then
+            echo "Expected 93 proof bundles, got ${PROOF_COUNT}"
+            exit 1
+          fi
+
+          if find web -type l -print -quit | grep -q .; then
+            echo "Pages artifact must not contain symlinks"
+            exit 1
+          fi
+
+          echo "PAGES_PROOF_BUNDLES=${PROOF_COUNT}"
+          du -sh web
+
+      - name: Verify generated snapshot constants
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+
+          const snapshot = JSON.parse(readFileSync('web/data/snapshot.json', 'utf8'));
+          const expected = {
+            holders: 11785,
+            known: '2334506800114108',
+            supply: '2334516727484230',
+            unattributed: '9927370122',
+          };
+          const recovery = snapshot.recovery;
+
+          if (recovery.positiveHolderAddresses !== expected.holders) {
+            throw new Error(`holder count mismatch: ${recovery.positiveHolderAddresses}`);
+          }
+          if (recovery.knownBalancePlanck !== expected.known) {
+            throw new Error(`known balance mismatch: ${recovery.knownBalancePlanck}`);
+          }
+          if (recovery.totalSupplyPlanck !== expected.supply) {
+            throw new Error(`total supply mismatch: ${recovery.totalSupplyPlanck}`);
+          }
+          if (recovery.unattributedPlanck !== expected.unattributed) {
+            throw new Error(`unattributed mismatch: ${recovery.unattributedPlanck}`);
+          }
+
+          console.log('SNAPSHOT_CONSTANTS=PASS');
+          NODE
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./web
+
+  deploy:
+    name: Deploy production Pages
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Smoke test deployed site
+        shell: bash
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+
+          BASE="${PAGE_URL%/}"
+          echo "PAGE_URL=${BASE}/"
+
+          curl --fail --silent --show-error --location "${BASE}/" --output /tmp/index.html
+          grep -q "xcDOT Terminal Snapshot" /tmp/index.html
+          curl --fail --silent --show-error --location "${BASE}/app.js" --output /tmp/app.js
+          curl --fail --silent --show-error --location "${BASE}/styles.css" --output /tmp/styles.css
+          curl --fail --silent --show-error --location "${BASE}/data/snapshot.json" --output /tmp/snapshot.json
+          curl --fail --silent --show-error --location "${BASE}/data/holders-index.json" --output /tmp/holders-index.json
+          curl --fail --silent --show-error --location "${BASE}/data/proofs/balance/balance-000000.json" --output /tmp/proof.json
+
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+
+          const snapshot = JSON.parse(readFileSync('/tmp/snapshot.json', 'utf8'));
+          if (snapshot.terminalState.blockNumber !== 16796696) {
+            throw new Error('wrong deployed terminal block');
+          }
+          if (snapshot.terminalState.stateRoot !== '0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb') {
+            throw new Error('wrong deployed state root');
+          }
+
+          console.log('DEPLOYED_SNAPSHOT=PASS');
+          NODE
+
+          echo "PAGES_SMOKE_TEST=PASS"

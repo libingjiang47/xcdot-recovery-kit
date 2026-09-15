@@ -22,3 +22,16 @@ The browser only requests static JSON, JSONL, CSV, and proof bundle files. It ne
 contacts Moonbeam, Dwellir, Subscan, SQD, or another runtime API. Proof bundles are
 loaded only for the address currently being inspected; the browser does not verify
 tries. The `Verified` label reflects the release verifier's offline result.
+
+## Production deployment
+
+Production is published to GitHub Pages by [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)
+from `main`. The workflow performs deterministic typecheck, lint, format, TypeScript
+build, offline release verification, release hash verification, and `pnpm web:build`
+before uploading only `web/` as the Pages artifact. It then deploys with the
+`github-pages` environment and runs a static smoke test against the deployment URL
+provided by GitHub Pages.
+
+The workflow requires no repository secrets and never contacts a chain provider.
+Repository-wide tests remain the responsibility of the existing CI workflow; the
+Pages workflow does not block publication on the known recovery-test timeouts.
