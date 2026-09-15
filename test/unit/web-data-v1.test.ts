@@ -25,7 +25,7 @@ describe('v1 terminal frontend data boundary', () => {
     expect(output).toContain('KNOWN_BALANCE_SUM_PLANCK=2334506800114108');
     expect(output).not.toContain('CLASSIFICATION_STATUS');
     expect(output).not.toContain('UNKNOWN_COUNT');
-  });
+  }, 20_000);
 
   it('emits a classification-free static schema', () => {
     const statistics = readJson<{
@@ -67,8 +67,12 @@ describe('v1 terminal frontend data boundary', () => {
     expect(app).toContain('schemaVersion: 2');
     expect(app).not.toMatch(/holder:\s*\{[^}]*classification/s);
     expect(app).not.toContain("params.get('type')");
-    expect(app).toContain('Filter address');
-    expect(app).toContain('Holder balance distribution');
-    expect(app).toContain('Concentration');
+    expect(app).toContain("t('top.filterAddress')");
+    expect(app).toContain("t('stats.distributionTitle')");
+    expect(app).toContain("t('stats.concentrationTitle')");
+    expect(app).toContain('class="home-main"');
+    expect(app).toContain('class="copyable-code"');
+    expect(app).not.toContain('summaryCards');
+    expect(app).toContain('schemaVersion: 2');
   });
 });

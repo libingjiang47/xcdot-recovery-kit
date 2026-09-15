@@ -3,9 +3,9 @@
 The `web/` directory is a static reader for the frozen release data in `data/`.
 It has three routes:
 
-- `/` — single-address lookup and snapshot summary;
-- `/statistics` — address-type, distribution, and concentration statistics;
-- `/top` — ranked known non-zero holders with type filters and pagination.
+- `/` — single-address lookup and terminal-state context;
+- `/statistics` — distribution and concentration statistics;
+- `/top` — ranked known non-zero holders with address search and pagination.
 
 Build the deployable static data with:
 
@@ -22,6 +22,11 @@ The browser only requests static JSON, JSONL, CSV, and proof bundle files. It ne
 contacts Moonbeam, Dwellir, Subscan, SQD, or another runtime API. Proof bundles are
 loaded only for the address currently being inspected; the browser does not verify
 tries. The `Verified` label reflects the release verifier's offline result.
+
+The public reader is a static, multilingual interface. It supports English,
+简体中文, 日本語, Deutsch, and Français; the selected language is stored locally
+and does not change snapshot URLs. Numeric balance formatting remains canonical
+and locale-independent so copied evidence is stable.
 
 ## Address classification boundary
 
