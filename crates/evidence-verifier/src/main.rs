@@ -331,7 +331,7 @@ fn verify_archive_probe(bundle: &Path) -> Result<()> {
     if string_field(&probe, "blockHash")?.to_ascii_lowercase() != ARCHIVE_PROBE_BLOCK_HASH
         || string_field(&probe, "stateRoot")?.to_ascii_lowercase() != ARCHIVE_PROBE_STATE_ROOT
         || u64_field(&probe, "stateVersion")? != 1
-        || string_field(&probe, "key")?.to_ascii_lowercase() != "0x3a636f6465"
+        || !string_field(&probe, "key")?.eq_ignore_ascii_case("0x3a636f6465")
     {
         bail!("archive probe is not for the pinned Moonbeam state")
     }
