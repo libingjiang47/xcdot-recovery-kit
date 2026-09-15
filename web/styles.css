@@ -99,8 +99,7 @@ nav a:hover {
   font-size: 0.86rem;
   white-space: nowrap;
 }
-.badge,
-.type-badge {
+.badge {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
@@ -463,11 +462,6 @@ summary {
   align-items: center;
   gap: 10px;
 }
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
 .filter-search {
   flex: 1;
   min-width: 160px;
@@ -516,18 +510,6 @@ th {
 }
 td strong {
   color: #1c2940;
-}
-.type-badge.code-present {
-  color: #315c9b;
-  background: #eaf1fc;
-}
-.type-badge.no-code {
-  color: #59677d;
-}
-.type-badge.system-precompile,
-.badge.system-precompile {
-  color: #5a6578;
-  background: #eef1f5;
 }
 .pagination {
   display: flex;
@@ -624,7 +606,6 @@ td strong {
     flex-wrap: wrap;
   }
   .filter-search {
-    order: 3;
     flex-basis: 100%;
     margin-left: 0;
   }
