@@ -10,10 +10,8 @@ function readJson<T>(path: string): T {
 }
 
 describe('v1 terminal frontend data boundary', () => {
-  it('builds offline when address classification is not captured', () => {
-    const sourceClassification = readJson<{ status: string }>('data/classification.json');
-    expect(sourceClassification.status).toBe('NOT_CAPTURED');
-
+  it('builds offline without address classification data', () => {
+    expect(existsSync(resolve(root, 'data/classification.json'))).toBe(false);
     const output = execFileSync(process.execPath, ['scripts/build-web-data.mjs'], {
       cwd: root,
       env: { ...process.env, NO_NETWORK: '1' },
@@ -54,6 +52,9 @@ describe('v1 terminal frontend data boundary', () => {
     expect(firstIndex).not.toHaveProperty('classification');
     expect(ranked[0]).not.toHaveProperty('classification');
     expect(existsSync(resolve(root, 'web/data/classification.json'))).toBe(false);
+    expect(readJson<Record<string, unknown>>('web/data/manifest.json')).toEqual(
+      expect.objectContaining({ schemaVersion: 2, proofBaseline: '20eaffd', staticOnly: true }),
+    );
   });
 
   it('keeps the frontend address, evidence, and top views classification-free', () => {

@@ -21,8 +21,9 @@
     "test:watch": "vitest",
     "start": "node dist/cli/index.js",
     "build:snapshot": "node dist/cli/index.js build-release",
-    "capture:proofs": "node dist/cli/index.js capture-release-proofs --data data --resume",
+    "capture:proofs": "node dist/cli/index.js capture-release-proofs --data data --source data/holders.jsonl --resume",
     "verify:release": "NO_NETWORK=1 node dist/cli/index.js verify-release --data data",
+    "release:hashes": "node dist/cli/index.js refresh-release-sums --data data",
     "web:build": "node scripts/build-web-data.mjs"
   },
   "dependencies": {

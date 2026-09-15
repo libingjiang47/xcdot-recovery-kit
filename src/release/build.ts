@@ -1,27 +1,22 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { XC_DOT_DECIMALS, XC_DOT_SYMBOL, XC_DOT_XC20_ADDRESS } from '../asset/constants.js';
 import {
   EXPECTED_XC_DOT_TOTAL_SUPPLY_PLANCK,
   MOONBEAM_FINAL_BLOCK_NUMBER,
   MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
   MOONBEAM_FINAL_SUBSTRATE_STATE_ROOT,
-  RANK565_HISTORICAL_BALANCE_PLANCK,
 } from '../final-state/constants.js';
 import {
   deriveBalanceAccountStoragesKeyDirect,
   deriveTotalSupplyAccountStoragesKeyDirect,
 } from '../storage/substrate-evm.js';
-import { sha256Hex } from '../snapshot/digest.js';
 import { compareCanonicalStrings } from '../utils/order.js';
 import { formatPercent, formatUnits } from './format.js';
 
 const KNOWN_SUM_PLANCK = 2334506800114108n;
 const UNATTRIBUTED_PLANCK = 9927370122n;
 const BALANCE_BATCH_SIZE = 128;
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-const DEFAULT_SOURCE =
-  'diagnostics/candidate-extension/candidate-cd2e0f20e5d49992/final-balances.ndjson';
 
 export interface FrozenBalance {
   address: string;
@@ -29,16 +24,9 @@ export interface FrozenBalance {
 }
 
 export interface BuildReleaseOptions {
-  source?: string;
+  source: string;
   out?: string;
   projectRoot?: string;
-}
-
-interface ClassificationRecord {
-  classification: 'unknown';
-  codeLength: null;
-  codeHash: null;
-  source: 'not-captured';
 }
 
 function json(value: unknown): string {
@@ -135,46 +123,21 @@ async function ensureDirectories(dataDirectory: string): Promise<void> {
   await Promise.all([
     mkdir(join(dataDirectory, 'raw', 'total-supply'), { recursive: true }),
     mkdir(join(dataDirectory, 'raw', 'balances'), { recursive: true }),
-    mkdir(join(dataDirectory, 'raw', 'account-code'), { recursive: true }),
     mkdir(join(dataDirectory, 'proofs', 'balance'), { recursive: true }),
-    mkdir(join(dataDirectory, 'proofs', 'code'), { recursive: true }),
   ]);
 }
 
-async function listFiles(root: string): Promise<string[]> {
-  const files: string[] = [];
-  async function visit(directory: string): Promise<void> {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) await visit(path);
-      else files.push(relative(root, path).split('\\').join('/'));
-    }
-  }
-  await visit(root);
-  return files.sort(compareCanonicalStrings);
-}
-
-export async function writeReleaseSums(projectRoot: string, dataDirectory: string): Promise<void> {
-  const files = await listFiles(dataDirectory);
-  const lines = [] as string[];
-  for (const file of files)
-    lines.push(`${sha256Hex(await readFile(join(dataDirectory, file)))}  data/${file}`);
-  await writeFile(join(projectRoot, 'SHA256SUMS'), `${lines.join('\n')}\n`, 'utf8');
-}
-
-export async function buildFrozenRelease(options: BuildReleaseOptions = {}): Promise<{
+export async function buildFrozenRelease(options: BuildReleaseOptions): Promise<{
   dataDirectory: string;
   holderCount: number;
   knownSumPlanck: string;
   unattributedPlanck: string;
-  candidateAddressesSha256: string;
 }> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const dataDirectory = resolve(options.out ?? join(projectRoot, 'data'));
-  const source = resolve(options.source ?? join(projectRoot, DEFAULT_SOURCE));
+  const source = resolve(options.source);
   const allCandidates = await readFrozenBalances(source);
   const holders = allCandidates.filter((record) => BigInt(record.balancePlanck) > 0n);
-  const zeroCandidates = allCandidates.filter((record) => BigInt(record.balancePlanck) === 0n);
   const knownSum = holders.reduce((sum, holder) => sum + BigInt(holder.balancePlanck), 0n);
   const totalSupply = BigInt(EXPECTED_XC_DOT_TOTAL_SUPPLY_PLANCK);
   if (
@@ -190,11 +153,8 @@ export async function buildFrozenRelease(options: BuildReleaseOptions = {}): Pro
   await ensureDirectories(dataDirectory);
 
   const holdersJsonl = serializeJsonl(holders);
-  const holdersJson = `${JSON.stringify(holders, null, 2)}\n`;
   const holdersCsv = serializeCsv(holders);
   const keyIndex = proofKeyIndex(holders);
-  const candidateAddresses = holders.map((holder) => ({ address: holder.address }));
-  const candidateAddressesSha256 = sha256Hex(serializeJsonl(candidateAddresses));
   const evidenceIndex: Record<string, unknown> = {};
   for (const holder of holders) {
     const proof = keyIndex.get(holder.address);
@@ -205,54 +165,6 @@ export async function buildFrozenRelease(options: BuildReleaseOptions = {}): Pro
     };
   }
 
-  const classification: Record<string, ClassificationRecord> = {};
-  for (const holder of holders)
-    classification[holder.address] = {
-      classification: 'unknown',
-      codeLength: null,
-      codeHash: null,
-      source: 'not-captured',
-    };
-  const classBalance = {
-    codePresent: '0',
-    noCode: '0',
-    unknown: knownSum.toString(10),
-  };
-  const statistics = {
-    schemaVersion: 1,
-    terminalState: {
-      blockNumber: Number(MOONBEAM_FINAL_BLOCK_NUMBER),
-      blockHash: MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
-      stateRoot: MOONBEAM_FINAL_SUBSTRATE_STATE_ROOT,
-    },
-    holders: {
-      knownPositive: holders.length,
-      codePresent: 0,
-      noCode: 0,
-      unknown: holders.length,
-    },
-    balancePlanck: {
-      totalSupply: totalSupply.toString(10),
-      knownRecovered: knownSum.toString(10),
-      unattributed: UNATTRIBUTED_PLANCK.toString(10),
-      codePresent: classBalance.codePresent,
-      noCode: classBalance.noCode,
-      unknown: classBalance.unknown,
-    },
-    percentages: {
-      byKnownRecoveredBalance: {
-        codePresent: formatPercent(0n, knownSum),
-        noCode: formatPercent(0n, knownSum),
-        unknown: formatPercent(knownSum, knownSum),
-      },
-      byTotalSupply: {
-        codePresent: formatPercent(0n, totalSupply),
-        noCode: formatPercent(0n, totalSupply),
-        unknown: formatPercent(knownSum, totalSupply),
-      },
-    },
-    classificationStatus: 'NOT_CAPTURED',
-  };
   const snapshot = {
     schemaVersion: 1,
     snapshotId: 'moonbeam-xcdot-terminal-16796696-v1',
@@ -288,48 +200,29 @@ export async function buildFrozenRelease(options: BuildReleaseOptions = {}): Pro
       holderDiscoveryComplete: false,
       unattributedBalancePlanck: UNATTRIBUTED_PLANCK.toString(10),
       missingAddressIsNotProvenZero: true,
-      classificationComplete: false,
-      checkedZeroCandidateAddresses: zeroCandidates.length,
     },
     relayAnchor: { status: 'pending' },
   };
 
   const writes: Array<[string, string]> = [
     ['holders.jsonl', holdersJsonl],
-    ['holders.json', holdersJson],
     ['holders.csv', holdersCsv],
     ['snapshot.json', json(snapshot)],
-    ['statistics.json', json(statistics)],
-    [
-      'classification.json',
-      json({ schemaVersion: 1, status: 'NOT_CAPTURED', accounts: classification }),
-    ],
     ['evidence-index.json', json(evidenceIndex)],
-    ['candidate-addresses.ndjson', serializeJsonl(candidateAddresses)],
-    ['candidate-addresses.sha256', `${candidateAddressesSha256}\n`],
-    [
-      'zero-balance-candidates.ndjson',
-      serializeJsonl(zeroCandidates.map((record) => ({ address: record.address }))),
-    ],
   ];
   for (const [name, contents] of writes)
     await writeFile(join(dataDirectory, name), contents, 'utf8');
-  await writeReleaseSums(projectRoot, dataDirectory);
   return {
     dataDirectory,
     holderCount: holders.length,
     knownSumPlanck: knownSum.toString(10),
     unattributedPlanck: UNATTRIBUTED_PLANCK.toString(10),
-    candidateAddressesSha256,
   };
 }
 
 export {
   BALANCE_BATCH_SIZE,
-  DEFAULT_SOURCE,
   KNOWN_SUM_PLANCK,
   UNATTRIBUTED_PLANCK,
-  ZERO_ADDRESS,
   deriveTotalSupplyAccountStoragesKeyDirect,
-  RANK565_HISTORICAL_BALANCE_PLANCK,
 };

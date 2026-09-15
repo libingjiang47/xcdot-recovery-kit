@@ -10,7 +10,7 @@ import {
   createDwellirCurlTransport,
   type DwellirRpcTransport,
   resolveDwellirKey,
-} from '../storage/dwellir-final-state-recovery.js';
+} from '../storage/dwellir-rpc.js';
 import {
   deriveBalanceAccountStoragesKeyDirect,
   deriveTotalSupplyAccountStoragesKeyDirect,
@@ -18,14 +18,14 @@ import {
 import { decodeU256Storage, encodeU256Storage } from '../storage/solidity.js';
 import { sha256Hex } from '../snapshot/digest.js';
 import { compareCanonicalStrings } from '../utils/order.js';
-import { writeReleaseSums, readFrozenPositiveBalances, BALANCE_BATCH_SIZE } from './build.js';
+import { readFrozenPositiveBalances, BALANCE_BATCH_SIZE } from './build.js';
 
 const TOTAL_SUPPLY_SLOT = 2n;
 const BALANCES_SLOT = 0n;
 
 export interface CaptureReleaseProofOptions {
   data?: string;
-  source?: string;
+  source: string;
   key?: string;
   keyFile?: string;
   endpointBase?: string;
@@ -270,7 +270,7 @@ async function loadExistingBatch(
   }
 }
 
-export async function captureReleaseProofs(options: CaptureReleaseProofOptions = {}): Promise<{
+export async function captureReleaseProofs(options: CaptureReleaseProofOptions): Promise<{
   dataDirectory: string;
   balanceBatchCount: number;
   balanceProofCount: number;
@@ -278,13 +278,7 @@ export async function captureReleaseProofs(options: CaptureReleaseProofOptions =
 }> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const dataDirectory = resolve(options.data ?? join(projectRoot, 'data'));
-  const source = resolve(
-    options.source ??
-      join(
-        projectRoot,
-        'diagnostics/candidate-extension/candidate-cd2e0f20e5d49992/final-balances.ndjson',
-      ),
-  );
+  const source = resolve(options.source);
   const holders = await readFrozenPositiveBalances(source);
   if (holders.length !== 11785)
     throw new Error(`expected 11785 frozen positive holders, got ${holders.length}`);
@@ -418,7 +412,6 @@ export async function captureReleaseProofs(options: CaptureReleaseProofOptions =
   }
 
   await updateSnapshotProofStatus(dataDirectory, entries.length);
-  await writeReleaseSums(projectRoot, dataDirectory);
   return {
     dataDirectory,
     balanceBatchCount: batches.length,

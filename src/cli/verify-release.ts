@@ -2,8 +2,6 @@ import { execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { readFile, writeFile } from 'node:fs/promises';
-import { writeReleaseSums } from '../release/build.js';
 import { CanonicalSerializationError } from '../utils/errors.js';
 import { Command } from 'commander';
 
@@ -90,26 +88,6 @@ export function verifyReleaseCommand(): Command {
     if (!stdout.includes('STATUS=PASS')) {
       throw new CanonicalSerializationError('Release verifier did not report STATUS=PASS.');
     }
-    const snapshotPath = join(dataDirectory, 'snapshot.json');
-    const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8')) as {
-      status?: string;
-      recovery?: { unattributedPlanck?: string };
-      proofStatus?: Record<string, unknown>;
-      limitations?: Record<string, unknown>;
-    };
-    snapshot.proofStatus = {
-      ...(snapshot.proofStatus ?? {}),
-      totalSupplyVerified: true,
-      knownBalanceProofsVerified: true,
-    };
-    snapshot.status = 'READY';
-    snapshot.limitations = {
-      ...(snapshot.limitations ?? {}),
-      holderDiscoveryComplete: snapshot.recovery?.unattributedPlanck === '0',
-    };
-    await writeFile(snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8');
-    await writeReleaseSums(root, dataDirectory);
-    console.log(`STATUS=${snapshot.status}`);
   });
   return command;
 }

@@ -75,25 +75,4 @@ export const VerificationSchema = z
   })
   .strict();
 
-export const ClassificationSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    status: z.enum(['PASS', 'PARTIAL', 'NOT_RUN']),
-    accounts: z.array(
-      z
-        .object({
-          address,
-          codeStatus: z.enum(['no_code', 'has_code', 'system_precompile', 'unknown']),
-          classification: z
-            .enum(['code-present', 'no-code', 'system-precompile', 'unknown'])
-            .optional(),
-          source: z.string().min(1).optional(),
-          codeSize: z.number().int().nonnegative().optional(),
-          codeHash: hash.optional(),
-        })
-        .strict(),
-    ),
-  })
-  .strict();
-
 export type ManifestInput = z.infer<typeof ManifestSchema>;
