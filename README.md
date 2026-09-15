@@ -1,107 +1,105 @@
 # xcDOT Recovery Kit
 
-Independent open-source tooling for reconstructing and verifying the final xcDOT holder state on Moonbeam.
+**English** · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [Deutsch](docs/README.de.md) · [Français](docs/README.fr.md)
 
-The project exists to provide a deterministic, reproducible factual basis for community discussion around stranded xcDOT after Moonbeam's shutdown.
+Open-source tools and datasets for recovering and verifying final-state xcDOT balances on Moonbeam.
 
-It does not determine recovery eligibility, control funds, or represent Moonbeam, Polkadot, Parity Technologies, Web3 Foundation, or ArcheLabs.
+**Snapshot explorer:** [https://libingjiang47.github.io/xcdot-recovery-kit/](https://libingjiang47.github.io/xcdot-recovery-kit/)
 
-## Terminal Snapshot Explorer
+The current snapshot contains **11,785 known non-zero addresses**. Every published balance carries a corresponding Substrate state proof that can be verified independently against Moonbeam's terminal state root.
 
-The frozen xcDOT terminal snapshot can be queried at:
+## Principle
 
-https://libingjiang47.github.io/xcdot-recovery-kit/
+After Moonbeam stopped operating, and without a complete backup node, we reconstructed the set of addresses that may have held xcDOT from public RPC endpoints, block explorers, and indexed data, then queried their balances at the terminal state.
 
-The site is a static reader for known non-zero addresses and their release-verified
-evidence. It is not a live explorer and does not query an RPC at runtime.
+Those sources are not trusted as final authorities. RPC providers and explorers can have missing indexes, incomplete historical data, or incorrect results, so their returned balances are not accepted directly as the final result.
 
-## What it does
+The only chain-state trust anchor is the **state root** of the Moonbeam terminal block. Published xcDOT balances include their corresponding Substrate state proofs and can be verified offline.
 
-v0.26 retains the v0.2/v0.25 evidence paths and adds final-state reconstruction from the pinned EVM contract state. Subscan contributes only the normalized candidate H160 set; `reconstruct-final-state` queries `balanceOf` and `totalSupply` at one explicit EVM block, persists an append-only checkpoint, and reports exact supply completeness without using Subscan balances as an invariant. The metadata-derived `pallet_evm::AccountStorages` backend refuses to guess Solidity slots and can acquire read proofs once a provenance-bearing storage-layout artifact is supplied. The Rank 565 diagnostic remains a separate, non-canonical investigation path.
+## Terminal block
 
-The frozen terminal-state release under `data/` packages the currently known 11,785 non-zero addresses and their pinned AccountStorages balances. It is intentionally non-canonical while `9927370122` planck (`0.9927370122 xcDOT`) remains unattributed. Read proofs, when captured, are verified against the pinned Substrate state root by the offline Rust verifier; an absent address is never treated as a proven zero.
+This project is anchored to the following Moonbeam state:
 
-The authoritative output is a statement of chain state. Contract-held balances remain in the holder set; no beneficiary or recovery entitlement is inferred.
-
-## What it does not do
-
-This release does not move funds, generate claims, determine beneficiaries, reconstruct DeFi positions, connect wallets, deploy contracts, or treat Subscan balances as authoritative final state.
-
-## Install and test
-
-Requirements: Node.js 24 and pnpm.
-
-```bash
-pnpm install
-pnpm build
-pnpm test
-pnpm lint
-cargo test --workspace
+```text
+Block Number 16,796,696
+Block Hash   0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f
+State Root   0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb
 ```
 
-All normal tests use local fixtures and do not require an RPC.
+This is the **last Moonbeam parachain block finalized by Polkadot**.
 
-## Reproduce a snapshot
-
-An explicit block hash is mandatory. The tool never silently uses `latest`.
-
-```bash
-xcdot-recovery probe --rpc <moonbeam-substrate-rpc>
-xcdot-recovery inspect --rpc <moonbeam-substrate-rpc> --block-hash <hash>
-xcdot-recovery snapshot --rpc <moonbeam-substrate-rpc> --block-hash <hash> --out snapshots
-xcdot-recovery verify --rpc <moonbeam-substrate-rpc> --snapshot snapshots/<number>-<short-hash>
-xcdot-recovery evm-check --rpc <moonbeam-evm-rpc> --snapshot snapshots/<number>-<short-hash>
-xcdot-recovery capture-evidence --rpc <moonbeam-substrate-rpc> --block-hash <hash> --out evidence
-xcdot-recovery verify-evidence --bundle evidence/<number>-<short-hash>
-xcdot-recovery import-subscan --input snapshots/subscan --expected-files 73
-xcdot-recovery verify-subscan-final-state --dataset snapshots/subscan/derived --evm-rpc <moonbeam-evm-rpc> --block-number <number> --substrate-block-hash <hash>
-xcdot-recovery diagnose-rank565 --dataset snapshots/subscan --evm-rpc <moonbeam-evm-rpc> --block-number 16796696 --from-block <justified-start>
-xcdot-recovery reconstruct-final-state --dataset snapshots/subscan --evm-rpc <moonbeam-evm-rpc> --block-number 16796696 --expected-total-supply 2334516727484230 --resume
-xcdot-recovery probe-subscan-final-state --dataset snapshots/final-state/moonbeam-16796696 --out diagnostics/subscan-final-state-probe
-xcdot-recovery probe-subscan-final-state --access direct-subscan --dataset snapshots/final-state/moonbeam-16796696 --out diagnostics/subscan-final-state-probe-direct
-xcdot-recovery inspect-evm-storage-layout --substrate-rpc <moonbeam-substrate-rpc> --block-hash <hash> --layout <verified-layout.json>
-xcdot-recovery extract-final-state-storage --substrate-rpc <moonbeam-substrate-rpc> --block-hash <hash> --dataset snapshots/subscan --layout <verified-layout.json>
-xcdot-recovery probe-substrate-archive --rpc <moonbeam-substrate-rpc> --block-hash 0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f
-xcdot-recovery probe-substrate-archive-matrix --block-hash 0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f --provider onfinality=<rpc> --provider foundation=<rpc>
-xcdot-recovery probe-nownodes-final-state
-xcdot-recovery probe-dwellir-final-state
-xcdot-recovery probe-dwellir-final-state-direct
-xcdot-recovery recover-dwellir-final-state --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --expected-total-supply 2334516727484230 --resume
-xcdot-recovery recover-dwellir-final-state --dataset snapshots/subscan --candidate-extension snapshots/routescan/xcdot-holders.ndjson --expected-total-supply 2334516727484230 --resume
-xcdot-recovery fetch-sqd-xcdot-candidates --from-block 0 --to-block 16796696 --resume
-xcdot-recovery recover-sqd-backward --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --window-blocks 10000 --max-unproductive-windows 20 --resume
-xcdot-recovery recover-dwellir-gap --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --prior-work diagnostics/sqd-backward-recovery --gap-start 16669569 --gap-end 16796696 --log-window-blocks 1000 --log-endpoint https://moonbeam.api.onfinality.io/public --connect-timeout-ms 120000 --timeout-ms 300000 --storage-concurrency 2 --resume
-node dist/cli/index.js build-release --source diagnostics/candidate-extension/candidate-cd2e0f20e5d49992/final-balances.ndjson --out data
-node dist/cli/index.js capture-release-proofs --data data --timeout-ms 300000 --connect-timeout-ms 120000 --resume
-NO_NETWORK=1 node dist/cli/index.js verify-release --data data
-```
-
-`--rpc` may be omitted only when `MOONBEAM_RPC` is set. No third-party provider is selected automatically.
-
-Run the same explicit block against at least two independent providers and compare the resulting directories:
-
-```bash
-xcdot-recovery compare snapshots/provider-a snapshots/provider-b
-```
-
-The canonical identity excludes RPC URL, timestamps, host information, and other provenance. Those are kept in `provenance.json`.
-
-## Trust boundary
-
-The snapshot reports which H160 accounts held xcDOT at a particular Moonbeam state root. It does not decide who should receive native DOT, how a contract-held balance should be distributed, or which governance mechanism should authorize recovery. Those are separate future policy and execution layers.
-
-The terminal frontend does not classify addresses or infer ownership. Address-code
-analysis remains optional research tooling and is not part of the release pipeline.
+The recovery work uses Polkadot finality as its reference: [Moonbeam block 16,796,696](https://moonbeam.subscan.io/block/16796696).
 
 ## Current status
 
-The frozen terminal state is Moonbeam block `16,796,696` with state root
-`0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb`.
-The known non-zero balance sum is `2334506800114108` planck against total
-supply `2334516727484230`, so `0.9927370122 xcDOT` remains unattributed. The
-dataset is not canonical and does not claim to be a complete holder list.
+| Item                     |                    Value |
+| ------------------------ | -----------------------: |
+| Known non-zero addresses |                   11,785 |
+| Known verified balance   | 233,450.6800114108 xcDOT |
+| xcDOT total supply       |  233,451.672748423 xcDOT |
+| Unattributed             |       0.9927370122 xcDOT |
+| Verified balance proofs  |          11,785 / 11,785 |
 
-See [terminal-state recovery snapshot](docs/canonical-recovery-snapshot.md), [limitations](docs/limitations.md), [Subscan import](docs/subscan-import.md), [real import audit](docs/subscan-real-import.md), [final-state verification](docs/subscan-final-state-verification.md), [v0.26 final-state reconstruction](docs/final-state-reconstruction.md), [Moonscan candidate reconciliation](docs/moonscan-final-state-reconciliation.md), [migration-era holder recovery](docs/migration-era-holder-recovery.md), [generic candidate extensions](docs/candidate-extension.md), [SQD Transfer candidate discovery](docs/sqd-transfer-candidate-discovery.md), [SQD backward recovery](docs/sqd-backward-recovery.md), [Dwellir Frontier gap recovery](docs/dwellir-frontier-gap-recovery.md), [Moonscan final-state result](docs/moonscan-final-state-result.md), [Subscan/PubFi final-state probe](docs/subscan-final-state-probe.md), [historical Substrate archive probe](docs/substrate-archive-probe.md), [NOWNodes final-state proof probe](docs/nownodes-final-state-probe.md), [Dwellir final-state proof probe](docs/dwellir-final-state-probe.md), [Dwellir direct final-state probe](docs/dwellir-final-state-direct-probe.md), [Rank 565 diagnostic](docs/rank565-diagnostic.md), and the [Rank 565 arithmetic erratum](docs/rank565-arithmetic-erratum.md).
+The known balances cover approximately **99.9995749%** of total supply.
+
+The remaining `0.9927370122 xcDOT` is unattributed. Therefore, 11,785 is the current known non-zero address set, not a completeness claim about every possible holder.
+
+## Verify the release
+
+Clone the repository:
+
+```bash
+git clone https://github.com/libingjiang47/xcdot-recovery-kit.git
+cd xcdot-recovery-kit
+```
+
+Install and build:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+Verify release hashes:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+Verify every balance proof offline:
+
+```bash
+NO_NETWORK=1 pnpm verify:release
+```
+
+The complete release should report:
+
+```text
+PROOF_BATCHES=93/93
+PROOF_ADDRESSES=11785/11785
+TOTAL_SUPPLY_PROOF=PASS
+BALANCE_PROOFS_VERIFIED=11785
+OFFLINE_VERIFICATION=PASS
+STATUS=PASS
+```
+
+## Snapshot explorer
+
+Open the static query page:
+
+[https://libingjiang47.github.io/xcdot-recovery-kit/](https://libingjiang47.github.io/xcdot-recovery-kit/)
+
+It can look up an address balance, show its associated proof, and download independent evidence. The website never queries an RPC at runtime.
+
+## Disclaimer
+
+This project is solely for recovering and verifying publicly observable on-chain state.
+
+Addresses, balances, and proofs do not constitute any form of asset ownership determination, claim eligibility, compensation promise, legal advice, or financial advice.
+
+This project does not represent Moonbeam, Polkadot, Parity Technologies, Web3 Foundation, ArcheLabs, or any other related organization.
+
+Any rules for actual asset recovery, distribution, or claims must be determined by independent governance and execution mechanisms.
 
 ## License
 
