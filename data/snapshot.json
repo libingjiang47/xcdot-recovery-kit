@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "snapshotId": "moonbeam-xcdot-terminal-16796696-v1",
+  "status": "UNATTRIBUTED_SHORTFALL",
+  "terminalState": {
+    "blockNumber": 16796696,
+    "blockHash": "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f",
+    "stateRoot": "0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb"
+  },
+  "asset": {
+    "contract": "0xffffffff1fcacbd218edc0eba20fc2308c778080",
+    "symbol": "xcDOT",
+    "decimals": 10,
+    "balancesSlot": 0,
+    "totalSupplySlot": 2
+  },
+  "recovery": {
+    "positiveHolderAddresses": 11785,
+    "knownBalancePlanck": "2334506800114108",
+    "totalSupplyPlanck": "2334516727484230",
+    "unattributedPlanck": "9927370122",
+    "knownCoveragePercent": "99.9995747"
+  },
+  "proofStatus": {
+    "type": "substrate-state_getReadProof",
+    "stateVersion": 1,
+    "totalSupplyCaptured": true,
+    "totalSupplyVerified": false,
+    "knownBalanceProofsCaptured": 7424,
+    "knownBalanceProofsVerified": false
+  },
+  "limitations": {
+    "holderDiscoveryComplete": false,
+    "unattributedBalancePlanck": "9927370122",
+    "missingAddressIsNotProvenZero": true,
+    "classificationComplete": false,
+    "checkedZeroCandidateAddresses": 6644
+  },
+  "relayAnchor": {
+    "status": "pending"
+  }
+}

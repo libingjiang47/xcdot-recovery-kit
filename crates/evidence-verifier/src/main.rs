@@ -15,6 +15,11 @@ use std::path::{Path, PathBuf};
 )]
 struct Args {
     bundle: PathBuf,
+    #[arg(
+        long = "release",
+        help = "Verify the frozen terminal-state release under data/"
+    )]
+    release_mode: bool,
     #[arg(long, help = "Verify a v0.26 final-state Substrate storage artifact")]
     final_state: bool,
     #[arg(long, help = "Verify a single pinned state_getReadProof archive probe")]
@@ -850,6 +855,320 @@ fn verify_final_state_storage(bundle: &Path) -> Result<()> {
     Ok(())
 }
 
+const RELEASE_BLOCK_NUMBER: u64 = 16_796_696;
+const RELEASE_BLOCK_HASH: &str =
+    "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f";
+const RELEASE_STATE_ROOT: &str =
+    "0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb";
+const RELEASE_CONTRACT: &str = "0xffffffff1fcacbd218edc0eba20fc2308c778080";
+const RELEASE_TOTAL_SUPPLY: u128 = 2_334_516_727_484_230;
+const RELEASE_KNOWN_SUM: u128 = 2_334_506_800_114_108;
+
+fn release_hex_array(value: &Value, path: &str) -> Result<Vec<Vec<u8>>> {
+    value
+        .as_array()
+        .with_context(|| format!("{path} is not an array"))?
+        .iter()
+        .map(|node| {
+            hex_bytes(
+                node.as_str()
+                    .context("release proof node is not a string")?,
+                path,
+            )
+        })
+        .collect()
+}
+
+fn verify_release_sums(data: &Path) -> Result<()> {
+    let sums_path = data
+        .parent()
+        .context("release data has no project parent")?
+        .join("SHA256SUMS");
+    let sums = read_text(&sums_path)?;
+    for line in sums.lines() {
+        let (expected, file) = line
+            .split_once("  ")
+            .with_context(|| format!("malformed SHA256SUMS line: {line}"))?;
+        if expected.len() != 64
+            || !expected
+                .chars()
+                .all(|character| character.is_ascii_hexdigit())
+            || !file.starts_with("data/")
+            || file.split('/').any(|part| part == "..")
+        {
+            bail!("malformed release SHA256SUMS entry: {line}")
+        }
+        let actual = sha256_hex(&read(&data.parent().unwrap().join(file))?);
+        if actual != expected {
+            bail!("release file hash mismatch for {file}: expected {expected}, got {actual}")
+        }
+    }
+    Ok(())
+}
+
+fn verify_release_raw_response(path: &Path, method: &str) -> Result<Value> {
+    let envelope = json(path)?;
+    if envelope.get("error").is_some() {
+        bail!("{method} raw response contains an error")
+    }
+    envelope
+        .get("result")
+        .cloned()
+        .with_context(|| format!("{method} raw response has no result"))
+}
+
+fn verify_release(data: &Path) -> Result<()> {
+    verify_release_sums(data)?;
+    let snapshot = json(&data.join("snapshot.json"))?;
+    if u64_field(&snapshot, "terminalState.blockNumber")? != RELEASE_BLOCK_NUMBER
+        || string_field(&snapshot, "terminalState.blockHash")?.to_ascii_lowercase()
+            != RELEASE_BLOCK_HASH
+        || string_field(&snapshot, "terminalState.stateRoot")?.to_ascii_lowercase()
+            != RELEASE_STATE_ROOT
+        || string_field(&snapshot, "asset.contract")?.to_ascii_lowercase() != RELEASE_CONTRACT
+        || u64_field(&snapshot, "asset.decimals")? != 10
+        || u64_field(&snapshot, "asset.balancesSlot")? != 0
+        || u64_field(&snapshot, "asset.totalSupplySlot")? != 2
+    {
+        bail!("release snapshot is not for the pinned Moonbeam xcDOT state")
+    }
+    if u64_field(&snapshot, "recovery.positiveHolderAddresses")? != 11_785
+        || string_field(&snapshot, "recovery.knownBalancePlanck")? != RELEASE_KNOWN_SUM.to_string()
+        || string_field(&snapshot, "recovery.totalSupplyPlanck")?
+            != RELEASE_TOTAL_SUPPLY.to_string()
+        || string_field(&snapshot, "recovery.unattributedPlanck")?
+            != (RELEASE_TOTAL_SUPPLY - RELEASE_KNOWN_SUM).to_string()
+    {
+        bail!("release economic invariants do not match the frozen result")
+    }
+    let root = H256::from_slice(&hex_bytes(RELEASE_STATE_ROOT, "release state root")?);
+
+    let holders_text = read_text(&data.join("holders.jsonl"))?;
+    if !holders_text.ends_with('\n') {
+        bail!("release holders.jsonl must end with LF")
+    }
+    let mut holders = BTreeMap::<String, u128>::new();
+    let mut known_sum = 0u128;
+    let mut previous_address: Option<String> = None;
+    for line in holders_text.lines() {
+        if line.is_empty() || !line.starts_with("{\"address\":\"") {
+            bail!("release holders.jsonl is not canonical NDJSON")
+        }
+        let holder: Value = serde_json::from_str(line).context("parse release holder")?;
+        record_has_exact_fields(&holder, &["address", "balancePlanck"])?;
+        let address = record_string(&holder, "address")?;
+        if hex_bytes(&address, "release holder address")?.len() != 20
+            || address != address.to_ascii_lowercase()
+        {
+            bail!("release holder address is not a lowercase H160")
+        }
+        if previous_address
+            .as_ref()
+            .is_some_and(|previous| previous >= &address)
+        {
+            bail!("release holders are not sorted by address")
+        }
+        previous_address = Some(address.clone());
+        let balance: u128 = record_string(&holder, "balancePlanck")?
+            .parse()
+            .context("release holder balance is not an integer")?;
+        if balance == 0 || holders.insert(address, balance).is_some() {
+            bail!("release holder is zero or duplicated")
+        }
+        known_sum = known_sum
+            .checked_add(balance)
+            .context("release balance sum overflow")?;
+    }
+    if holders.len() != 11_785 || known_sum != RELEASE_KNOWN_SUM {
+        bail!("release holder count or sum does not match the frozen result")
+    }
+
+    let total_key = derive_release_total_key();
+    let total = json(&data.join("proofs/total-supply.json"))?;
+    if string_field(&total, "blockHash")?.to_ascii_lowercase() != RELEASE_BLOCK_HASH
+        || string_field(&total, "stateRoot")?.to_ascii_lowercase() != RELEASE_STATE_ROOT
+        || string_field(&total, "storageKey")? != total_key
+    {
+        bail!("release totalSupply proof context mismatch")
+    }
+    let total_storage_key = string_field(&total, "storageKey")?;
+    let total_value = hex_bytes(
+        &string_field(&total, "storageValue")?,
+        "release totalSupply value",
+    )?;
+    if raw_word_u128(&total_value, "release totalSupply value")? != RELEASE_TOTAL_SUPPLY
+        || string_field(&total, "decodedPlanck")? != RELEASE_TOTAL_SUPPLY.to_string()
+    {
+        bail!("release totalSupply proof value mismatch")
+    }
+    let total_nodes = release_hex_array(field(&total, "proofNodes")?, "release totalSupply proof")?;
+    verify_proof_items(
+        1,
+        root,
+        &total_nodes,
+        &[(
+            hex_bytes(&total_storage_key, "release totalSupply key")?,
+            Some(total_value.clone()),
+        )],
+    )?;
+    let total_raw = verify_release_raw_response(
+        &data.join("raw/total-supply/read-proof.json"),
+        "state_getReadProof",
+    )?;
+    if total_raw
+        .get("at")
+        .and_then(Value::as_str)
+        .map(str::to_ascii_lowercase)
+        != Some(RELEASE_BLOCK_HASH.to_owned())
+    {
+        bail!("release totalSupply raw proof has a different block")
+    }
+    let total_storage_raw = verify_release_raw_response(
+        &data.join("raw/total-supply/storage.json"),
+        "state_getStorage",
+    )?;
+    if total_storage_raw.as_str().map(str::to_ascii_lowercase)
+        != Some(string_field(&total, "storageValue")?.to_ascii_lowercase())
+    {
+        bail!("release totalSupply storage response differs from normalized value")
+    }
+    let raw_total_nodes = release_hex_array(
+        total_raw
+            .get("proof")
+            .context("release totalSupply raw proof has no proof array")?,
+        "release totalSupply raw proof",
+    )?;
+    if raw_total_nodes != total_nodes {
+        bail!("release totalSupply raw and normalized proof nodes differ")
+    }
+    println!("CANONICAL_BLOCK={RELEASE_BLOCK_NUMBER}");
+    println!("CANONICAL_STATE_ROOT={RELEASE_STATE_ROOT}");
+    println!("TOTAL_SUPPLY_PROOF=PASS");
+    println!("TOTAL_SUPPLY_PLANCK={RELEASE_TOTAL_SUPPLY}");
+
+    let index_text = read_text(&data.join("proofs/index.ndjson"))?;
+    let mut seen_addresses = BTreeSet::new();
+    let mut previous_key: Option<String> = None;
+    let mut previous_batch: Option<u64> = None;
+    let mut proof_count = 0usize;
+    let mut batch_count = 0usize;
+    for line in index_text.lines() {
+        let index: Value = serde_json::from_str(line).context("parse release proof index")?;
+        let batch = index
+            .get("batch")
+            .and_then(Value::as_u64)
+            .context("release batch is not an integer")?;
+        if previous_batch.is_some_and(|previous| batch != previous + 1) {
+            bail!("release proof batches are not contiguous")
+        }
+        previous_batch = Some(batch);
+        batch_count += 1;
+        let file = record_string(&index, "file")?;
+        if Path::new(&file).is_absolute() || file.split('/').any(|part| part == "..") {
+            bail!("release proof filename escapes data directory")
+        }
+        let batch_path = data.join("proofs/balance").join(&file);
+        let raw_path = data.join("raw/balances").join(&file);
+        if !raw_path.exists() {
+            bail!("missing raw release proof response {file}")
+        }
+        let raw = verify_release_raw_response(&raw_path, "state_getReadProof")?;
+        if raw
+            .get("at")
+            .and_then(Value::as_str)
+            .map(str::to_ascii_lowercase)
+            != Some(RELEASE_BLOCK_HASH.to_owned())
+        {
+            bail!("release balance raw proof has a different block")
+        }
+        let proof_batch = json(&batch_path)?;
+        let batch_bytes = read(&batch_path)?;
+        if sha256_hex(&batch_bytes) != record_string(&index, "sha256")? {
+            bail!("release proof index hash does not match its batch")
+        }
+        if string_field(&proof_batch, "blockHash")?.to_ascii_lowercase() != RELEASE_BLOCK_HASH
+            || string_field(&proof_batch, "stateRoot")?.to_ascii_lowercase() != RELEASE_STATE_ROOT
+        {
+            bail!("release balance proof context mismatch")
+        }
+        let keys = field(&proof_batch, "keys")?
+            .as_array()
+            .context("release proof keys are not an array")?;
+        let expected_count = index
+            .get("keyCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(u64::MAX) as usize;
+        if keys.len() != expected_count {
+            bail!("release proof key count mismatch")
+        }
+        let mut items = Vec::new();
+        for key in keys {
+            record_has_exact_fields(
+                key,
+                &[
+                    "address",
+                    "solidityStorageSlot",
+                    "substrateStorageKey",
+                    "storageValue",
+                    "balancePlanck",
+                ],
+            )?;
+            let address = record_string(key, "address")?;
+            let balance: u128 = record_string(key, "balancePlanck")?.parse()?;
+            if holders.get(&address).copied() != Some(balance)
+                || !seen_addresses.insert(address.clone())
+            {
+                bail!("release proof holder coverage mismatch")
+            }
+            let storage_key = record_string(key, "substrateStorageKey")?;
+            if previous_key
+                .as_ref()
+                .is_some_and(|previous| previous >= &storage_key)
+            {
+                bail!("release proof keys are not globally sorted")
+            }
+            previous_key = Some(storage_key.clone());
+            let raw_value = hex_bytes(
+                &record_string(key, "storageValue")?,
+                "release balance value",
+            )?;
+            if raw_word_u128(&raw_value, "release balance value")? != balance {
+                bail!("release proof balance value mismatch")
+            }
+            items.push((
+                hex_bytes(&storage_key, "release balance key")?,
+                Some(raw_value),
+            ));
+            proof_count += 1;
+        }
+        let nodes = release_hex_array(field(&proof_batch, "proofNodes")?, "release balance proof")?;
+        let raw_nodes = release_hex_array(
+            raw.get("proof")
+                .context("release balance raw proof has no proof array")?,
+            "release balance raw proof",
+        )?;
+        if raw_nodes != nodes {
+            bail!("release balance raw and normalized proof nodes differ")
+        }
+        verify_proof_items(1, root, &nodes, &items)?;
+    }
+    if proof_count != holders.len() || seen_addresses != holders.keys().cloned().collect() {
+        bail!("release balance proof coverage is incomplete")
+    }
+    println!("BALANCE_PROOFS={proof_count}/{0}", holders.len());
+    println!("BALANCE_PROOFS_PASS=true");
+    println!("KNOWN_POSITIVE_HOLDERS={}", holders.len());
+    println!("KNOWN_BALANCE_SUM_PLANCK={known_sum}");
+    println!("UNATTRIBUTED_PLANCK={}", RELEASE_TOTAL_SUPPLY - known_sum);
+    println!("PROOF_BATCHES={batch_count}");
+    println!("STATUS=PASS");
+    Ok(())
+}
+
+fn derive_release_total_key() -> String {
+    "0x1da53b775b270400e7e61ed5cbc5a146ab1160471b1418779239ba8e2b847e421f720ca3a567a7892f51ba4eabe649ccffffffff1fcacbd218edc0eba20fc2308c7780800649d8fcd39471b32a600d9c85a03f380000000000000000000000000000000000000000000000000000000000000002".to_owned()
+}
+
 fn run(args: Args) -> Result<()> {
     let bundle = fs::canonicalize(&args.bundle).context("resolve evidence bundle")?;
     let manifest = json(&bundle.join("evidence-manifest.json"))?;
@@ -928,7 +1247,12 @@ fn run(args: Args) -> Result<()> {
 
 fn main() {
     let args = Args::parse();
-    let result = if args.archive_probe {
+    let result = if args.release_mode {
+        match fs::canonicalize(&args.bundle) {
+            Ok(data) => verify_release(&data),
+            Err(error) => Err(anyhow::anyhow!("resolve release data: {error}")),
+        }
+    } else if args.archive_probe {
         match fs::canonicalize(&args.bundle) {
             Ok(bundle) => verify_archive_probe(&bundle),
             Err(error) => Err(anyhow::anyhow!("resolve archive probe artifact: {error}")),

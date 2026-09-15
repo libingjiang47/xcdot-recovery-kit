@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>xcDOT Terminal State Snapshot</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">Moonbeam · xcDOT</p>
+        <h1>Terminal State Snapshot</h1>
+        <p class="lede">
+          Frozen evidence for block <strong id="block-number">—</strong>. This static page does not
+          query an RPC.
+        </p>
+        <div class="identity">
+          <span>Snapshot <code id="snapshot-id">—</code></span
+          ><span>State root <code id="state-root">—</code></span>
+        </div>
+      </header>
+
+      <section class="cards" aria-label="Recovery summary">
+        <article><span>Known non-zero addresses</span><strong id="holder-count">—</strong></article>
+        <article>
+          <span>Known recovered</span><strong id="known-recovered">—</strong><small>xcDOT</small>
+        </article>
+        <article>
+          <span>Total supply</span><strong id="total-supply">—</strong><small>xcDOT</small>
+        </article>
+        <article class="warning">
+          <span>Unattributed</span><strong id="unattributed">—</strong><small>xcDOT</small>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Address lookup</h2>
+          <span class="pill">offline</span>
+        </div>
+        <label for="address-input">Single address</label>
+        <div class="search-row">
+          <input id="address-input" inputmode="text" placeholder="0x…" /><button id="lookup-button">
+            Look up
+          </button>
+        </div>
+        <div id="lookup-result" class="result muted">Enter a canonical H160 address.</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Batch query</h2>
+          <span class="muted">one address per line, or CSV</span>
+        </div>
+        <textarea
+          id="batch-input"
+          rows="5"
+          placeholder="0x…
+0x…"
+        ></textarea>
+        <button id="batch-button">Query addresses</button>
+        <div id="batch-result" class="table-wrap"></div>
+      </section>
+
+      <section class="panel stats">
+        <div class="panel-heading">
+          <h2>Recovery statistics</h2>
+          <span id="proof-status" class="pill">proof status: —</span>
+        </div>
+        <div id="stats-result" class="stats-grid"></div>
+      </section>
+
+      <footer class="downloads">
+        <a href="../data/holders.csv" download>Download CSV</a>
+        <a href="../data/holders.jsonl" download>Download JSONL</a>
+        <a href="../data/snapshot.json" download>Download manifest</a>
+        <a href="../SHA256SUMS" download>Download SHA256SUMS</a>
+      </footer>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

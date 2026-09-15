@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "terminalState": {
+    "blockNumber": 16796696,
+    "blockHash": "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f",
+    "stateRoot": "0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb"
+  },
+  "holders": {
+    "knownPositive": 11785,
+    "codePresent": 0,
+    "noCode": 0,
+    "unknown": 11785
+  },
+  "balancePlanck": {
+    "totalSupply": "2334516727484230",
+    "knownRecovered": "2334506800114108",
+    "unattributed": "9927370122",
+    "codePresent": "0",
+    "noCode": "0",
+    "unknown": "2334506800114108"
+  },
+  "percentages": {
+    "byKnownRecoveredBalance": {
+      "codePresent": "0.0000000",
+      "noCode": "0.0000000",
+      "unknown": "100.0000000"
+    },
+    "byTotalSupply": {
+      "codePresent": "0.0000000",
+      "noCode": "0.0000000",
+      "unknown": "99.9995747"
+    }
+  },
+  "classificationStatus": "NOT_CAPTURED"
+}

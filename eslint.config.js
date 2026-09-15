@@ -6,6 +6,14 @@ export default tseslint.config(
   {
     ignores: ['dist/**', 'snapshots/**', 'coverage/**'],
   },
+  {
+    files: ['web/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {

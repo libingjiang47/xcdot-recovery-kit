@@ -62,6 +62,8 @@ interface JsonRpcEnvelope {
 export interface DwellirRpcTransport {
   call(method: string, params: readonly unknown[]): Promise<unknown>;
   batch(calls: readonly { method: string; params: readonly unknown[] }[]): Promise<unknown[]>;
+  /** Return the complete JSON-RPC envelope for evidence capture when available. */
+  rawCall?(method: string, params: readonly unknown[]): Promise<unknown>;
 }
 
 export interface DwellirFinalStateRecoveryOptions {
@@ -401,18 +403,15 @@ function createCurlRpcTransport(
   redactionKey: string,
 ): DwellirRpcTransport {
   let nextId = 1;
+  const rawCall = async (method: string, params: readonly unknown[]): Promise<unknown> => {
+    const id = nextId++;
+    const payload: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
+    return curlJson(endpoint, payload, timeoutMs, connectTimeoutMs, retries, redactionKey);
+  };
   return {
+    rawCall,
     async call(method, params) {
-      const id = nextId++;
-      const payload: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
-      const response = await curlJson(
-        endpoint,
-        payload,
-        timeoutMs,
-        connectTimeoutMs,
-        retries,
-        redactionKey,
-      );
+      const response = await rawCall(method, params);
       return parseRpcEnvelope(response, method);
     },
     async batch(calls) {

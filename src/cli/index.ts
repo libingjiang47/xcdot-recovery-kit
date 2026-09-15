@@ -27,6 +27,10 @@ import { recoverDwellirFinalStateCommand } from './recover-dwellir-final-state.j
 import { fetchSqdXcdotCandidatesCommand } from './fetch-sqd-xcdot-candidates.js';
 import { recoverSqdBackwardCommand } from './recover-sqd-backward.js';
 import { recoverDwellirGapCommand } from './recover-dwellir-gap.js';
+import { buildReleaseCommand } from './build-release.js';
+import { captureReleaseProofsCommand } from './capture-release-proofs.js';
+import { verifyReleaseCommand } from './verify-release.js';
+import { classifyReleaseCommand } from './classify-release.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -60,6 +64,10 @@ export function createProgram(): Command {
   program.addCommand(fetchSqdXcdotCandidatesCommand());
   program.addCommand(recoverSqdBackwardCommand());
   program.addCommand(recoverDwellirGapCommand());
+  program.addCommand(buildReleaseCommand());
+  program.addCommand(captureReleaseProofsCommand());
+  program.addCommand(verifyReleaseCommand());
+  program.addCommand(classifyReleaseCommand());
   return program;
 }
 

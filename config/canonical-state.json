@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "network": {
+    "name": "Moonbeam",
+    "paraId": 2004
+  },
+  "terminalState": {
+    "blockNumber": 16796696,
+    "blockHash": "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f",
+    "stateRoot": "0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb"
+  },
+  "asset": {
+    "symbol": "xcDOT",
+    "contract": "0xffffffff1fcacbd218edc0eba20fc2308c778080",
+    "decimals": 10,
+    "balancesSlot": 0,
+    "totalSupplySlot": 2
+  },
+  "knownState": {
+    "positiveHolderCount": 11785,
+    "totalSupplyPlanck": "2334516727484230",
+    "knownBalanceSumPlanck": "2334506800114108",
+    "unattributedPlanck": "9927370122"
+  },
+  "proof": {
+    "type": "substrate-state_getReadProof",
+    "stateVersion": 1,
+    "status": "pending-capture"
+  },
+  "releasePolicy": {
+    "canonicalHolderSet": false,
+    "missingAddressesAreNotAssumedZero": true
+  }
+}
