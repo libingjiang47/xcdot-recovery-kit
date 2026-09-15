@@ -6,6 +6,15 @@ The project exists to provide a deterministic, reproducible factual basis for co
 
 It does not determine recovery eligibility, control funds, or represent Moonbeam, Polkadot, Parity Technologies, Web3 Foundation, or ArcheLabs.
 
+## Terminal Snapshot Explorer
+
+The frozen xcDOT terminal snapshot can be queried at:
+
+https://libingjiang47.github.io/xcdot-recovery-kit/
+
+The site is a static reader for known non-zero addresses and their release-verified
+evidence. It is not a live explorer and does not query an RPC at runtime.
+
 ## What it does
 
 v0.26 retains the v0.2/v0.25 evidence paths and adds final-state reconstruction from the pinned EVM contract state. Subscan contributes only the normalized candidate H160 set; `reconstruct-final-state` queries `balanceOf` and `totalSupply` at one explicit EVM block, persists an append-only checkpoint, and reports exact supply completeness without using Subscan balances as an invariant. The metadata-derived `pallet_evm::AccountStorages` backend refuses to guess Solidity slots and can acquire read proofs once a provenance-bearing storage-layout artifact is supplied. The Rank 565 diagnostic remains a separate, non-canonical investigation path.
