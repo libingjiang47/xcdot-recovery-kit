@@ -39,6 +39,9 @@ NO_NETWORK=1 node dist/cli/index.js verify-release --data data
 ```
 
 The release proof type is `substrate-state_getReadProof`. `eth_getProof` and
-explorer balances are not canonical evidence. The release status becomes
-`PROOF_VERIFIED_WITH_SHORTFALL` only after all captured proofs pass; it never
-becomes canonical while the supply gap remains.
+explorer balances are not canonical evidence. Once all 11,785 balance proofs
+and the total-supply proof pass offline, the release status becomes `READY`.
+`READY` freezes the verified known-holder evidence; the remaining
+`9927370122` planck is still recorded as an unattributed shortfall, so the
+artifact does not claim that the known address set is a complete holder
+universe.

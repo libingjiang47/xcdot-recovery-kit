@@ -22,6 +22,7 @@ async function runVerifier(
   dataDirectory: string,
   configuredBinary: string | undefined,
   root: string,
+  partial: boolean,
 ): Promise<string> {
   const binaryCandidates = [
     configuredBinary,
@@ -37,8 +38,9 @@ async function runVerifier(
   delete env.DWELLIR_KEY;
   delete env.MOONBEAM_RPC;
   delete env.SUBSCAN_API_KEY;
+  const verifierArgs = [dataDirectory, '--release', ...(partial ? ['--partial-release'] : [])];
   if (binary) {
-    const result = await execFileAsync(binary, [dataDirectory, '--release'], {
+    const result = await execFileAsync(binary, verifierArgs, {
       cwd: root,
       env,
       maxBuffer: 32 * 1024 * 1024,
@@ -55,6 +57,7 @@ async function runVerifier(
       '--',
       dataDirectory,
       '--release',
+      ...(partial ? ['--partial-release'] : []),
     ],
     { cwd: root, env, maxBuffer: 32 * 1024 * 1024 },
   );
@@ -67,11 +70,23 @@ export function verifyReleaseCommand(): Command {
   );
   command.option('--data <directory>', 'Release data directory', 'data');
   command.option('--verifier-binary <path>', 'Prebuilt evidence-verifier binary');
-  command.action(async (options: { data: string; verifierBinary?: string }) => {
+  command.option(
+    '--partial',
+    'Verify currently captured proof batches without requiring full coverage',
+  );
+  command.action(async (options: { data: string; verifierBinary?: string; partial?: boolean }) => {
     const root = resolve(process.cwd());
     const dataDirectory = resolve(options.data);
-    const stdout = await runVerifier(dataDirectory, options.verifierBinary, root);
+    const stdout = await runVerifier(
+      dataDirectory,
+      options.verifierBinary,
+      root,
+      options.partial ?? false,
+    );
     process.stdout.write(stdout);
+    if (options.partial && stdout.includes('STATUS=PARTIAL_PASS')) {
+      return;
+    }
     if (!stdout.includes('STATUS=PASS')) {
       throw new CanonicalSerializationError('Release verifier did not report STATUS=PASS.');
     }
@@ -87,10 +102,7 @@ export function verifyReleaseCommand(): Command {
       totalSupplyVerified: true,
       knownBalanceProofsVerified: true,
     };
-    snapshot.status =
-      snapshot.recovery?.unattributedPlanck === '0'
-        ? 'PROOF_VERIFIED'
-        : 'PROOF_VERIFIED_WITH_SHORTFALL';
+    snapshot.status = 'READY';
     snapshot.limitations = {
       ...(snapshot.limitations ?? {}),
       holderDiscoveryComplete: snapshot.recovery?.unattributedPlanck === '0',

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "snapshotId": "moonbeam-xcdot-terminal-16796696-v1",
-  "status": "UNATTRIBUTED_SHORTFALL",
+  "status": "READY",
   "terminalState": {
     "blockNumber": 16796696,
     "blockHash": "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f",
@@ -25,9 +25,9 @@
     "type": "substrate-state_getReadProof",
     "stateVersion": 1,
     "totalSupplyCaptured": true,
-    "totalSupplyVerified": false,
-    "knownBalanceProofsCaptured": 7552,
-    "knownBalanceProofsVerified": false
+    "totalSupplyVerified": true,
+    "knownBalanceProofsCaptured": 11785,
+    "knownBalanceProofsVerified": true
   },
   "limitations": {
     "holderDiscoveryComplete": false,

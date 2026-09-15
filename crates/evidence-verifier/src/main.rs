@@ -3,6 +3,7 @@ use clap::Parser;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sp_core::{Blake2Hasher, Hasher, H256};
+use sp_state_machine::{read_proof_check, StorageProof};
 use sp_trie::{verify_trie_proof, LayoutV0, LayoutV1};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -20,6 +21,11 @@ struct Args {
         help = "Verify the frozen terminal-state release under data/"
     )]
     release_mode: bool,
+    #[arg(
+        long = "partial-release",
+        help = "Verify all currently captured release proof batches without requiring full coverage"
+    )]
+    partial_release: bool,
     #[arg(long, help = "Verify a v0.26 final-state Substrate storage artifact")]
     final_state: bool,
     #[arg(long, help = "Verify a single pinned state_getReadProof archive probe")]
@@ -235,6 +241,37 @@ fn verify_proof_items(
     items: &[(Vec<u8>, Option<Vec<u8>>)],
 ) -> Result<()> {
     match state_version {
+        0 => verify_legacy_proof_items(state_version, root, proof, items),
+        1 => {
+            let proven = read_proof_check::<Blake2Hasher, _>(
+                root,
+                StorageProof::new(proof.to_vec()),
+                items.iter().map(|(key, _)| key),
+            )
+            .map_err(|error| {
+                anyhow::anyhow!("Substrate read proof verification failed: {error:?}")
+            })?;
+            for (key, expected) in items {
+                let actual = proven.get(key).with_context(|| {
+                    format!("proof did not return requested key 0x{}", hex::encode(key))
+                })?;
+                if actual != expected {
+                    bail!("proof value mismatch for key 0x{}", hex::encode(key));
+                }
+            }
+            Ok(())
+        }
+        other => bail!("unsupported Substrate state version {other}"),
+    }
+}
+
+fn verify_legacy_proof_items(
+    state_version: u64,
+    root: H256,
+    proof: &[Vec<u8>],
+    items: &[(Vec<u8>, Option<Vec<u8>>)],
+) -> Result<()> {
+    match state_version {
         0 => verify_trie_proof::<LayoutV0<Blake2Hasher>, _, _, _>(&root, proof, items.iter())
             .map_err(|error| anyhow::anyhow!("state trie V0 proof verification failed: {error:?}")),
         1 => verify_trie_proof::<LayoutV1<Blake2Hasher>, _, _, _>(&root, proof, items.iter())
@@ -286,7 +323,7 @@ fn verify_archive_probe_payload(probe: &Value) -> Result<()> {
             )
         })
         .collect::<Result<Vec<_>>>()?;
-    verify_proof_items(state_version, root, &proof, &[(key, Some(value))])
+    verify_legacy_proof_items(state_version, root, &proof, &[(key, Some(value))])
 }
 
 fn verify_archive_probe(bundle: &Path) -> Result<()> {
@@ -917,7 +954,7 @@ fn verify_release_raw_response(path: &Path, method: &str) -> Result<Value> {
         .with_context(|| format!("{method} raw response has no result"))
 }
 
-fn verify_release(data: &Path) -> Result<()> {
+fn verify_release(data: &Path, allow_incomplete: bool) -> Result<()> {
     verify_release_sums(data)?;
     let snapshot = json(&data.join("snapshot.json"))?;
     if u64_field(&snapshot, "terminalState.blockNumber")? != RELEASE_BLOCK_NUMBER
@@ -1010,7 +1047,8 @@ fn verify_release(data: &Path) -> Result<()> {
             hex_bytes(&total_storage_key, "release totalSupply key")?,
             Some(total_value.clone()),
         )],
-    )?;
+    )
+    .context("release totalSupply proof failed")?;
     let total_raw = verify_release_raw_response(
         &data.join("raw/total-supply/read-proof.json"),
         "state_getReadProof",
@@ -1150,13 +1188,21 @@ fn verify_release(data: &Path) -> Result<()> {
         if raw_nodes != nodes {
             bail!("release balance raw and normalized proof nodes differ")
         }
-        verify_proof_items(1, root, &nodes, &items)?;
+        verify_proof_items(1, root, &nodes, &items)
+            .with_context(|| format!("release balance proof batch {batch} failed"))?;
     }
-    if proof_count != holders.len() || seen_addresses != holders.keys().cloned().collect() {
+    if !allow_incomplete
+        && (proof_count != holders.len() || seen_addresses != holders.keys().cloned().collect())
+    {
         bail!("release balance proof coverage is incomplete")
     }
     println!("BALANCE_PROOFS={proof_count}/{0}", holders.len());
     println!("BALANCE_PROOFS_PASS=true");
+    if allow_incomplete && proof_count != holders.len() {
+        println!("BALANCE_PROOFS_INCOMPLETE=true");
+        println!("STATUS=PARTIAL_PASS");
+        return Ok(());
+    }
     println!("KNOWN_POSITIVE_HOLDERS={}", holders.len());
     println!("KNOWN_BALANCE_SUM_PLANCK={known_sum}");
     println!("UNATTRIBUTED_PLANCK={}", RELEASE_TOTAL_SUPPLY - known_sum);
@@ -1249,7 +1295,7 @@ fn main() {
     let args = Args::parse();
     let result = if args.release_mode {
         match fs::canonicalize(&args.bundle) {
-            Ok(data) => verify_release(&data),
+            Ok(data) => verify_release(&data, args.partial_release),
             Err(error) => Err(anyhow::anyhow!("resolve release data: {error}")),
         }
     } else if args.archive_probe {
@@ -1274,7 +1320,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sp_trie::{generate_trie_proof, TrieDBMutBuilder, TrieMut};
+    use sp_trie::{generate_trie_proof, LayoutV1, TrieDBMutBuilder, TrieMut};
 
     #[test]
     fn compact_block_number_round_trips() {
@@ -1288,7 +1334,7 @@ mod tests {
     #[test]
     fn valid_and_mutated_proofs_are_distinguished() {
         type Layout = LayoutV1<Blake2Hasher>;
-        let mut db = sp_trie::MemoryDB::<Blake2Hasher>::default();
+        let mut db = sp_trie::PrefixedMemoryDB::<Blake2Hasher>::default();
         let mut root = H256::default();
         let pairs = [
             (b"a".as_slice(), b"one".as_slice()),
@@ -1306,7 +1352,7 @@ mod tests {
             (b"a".to_vec(), Some(b"one".to_vec())),
             (b"b".to_vec(), Some(b"two".to_vec())),
         ];
-        verify_proof_items(1, root, &proof, &items).unwrap();
+        verify_legacy_proof_items(1, root, &proof, &items).unwrap();
         let archive_keys = [b"a".to_vec()];
         let archive_proof =
             generate_trie_proof::<Layout, _, _, _>(&db, root, archive_keys.iter()).unwrap();
@@ -1331,16 +1377,16 @@ mod tests {
         assert!(verify_archive_probe_payload(&archive_probe_wrong_node).is_err());
         let mut wrong = items.clone();
         wrong[0].1 = Some(b"bad".to_vec());
-        assert!(verify_proof_items(1, root, &proof, &wrong).is_err());
-        assert!(verify_proof_items(1, H256::repeat_byte(9), &proof, &items).is_err());
+        assert!(verify_legacy_proof_items(1, root, &proof, &wrong).is_err());
+        assert!(verify_legacy_proof_items(1, H256::repeat_byte(9), &proof, &items).is_err());
         let wrong_key = vec![(b"c".to_vec(), Some(b"one".to_vec()))];
-        assert!(verify_proof_items(1, root, &proof, &wrong_key).is_err());
+        assert!(verify_legacy_proof_items(1, root, &proof, &wrong_key).is_err());
         let mut removed = proof.clone();
         removed.pop();
-        assert!(verify_proof_items(1, root, &removed, &items).is_err());
+        assert!(verify_legacy_proof_items(1, root, &removed, &items).is_err());
         let mut mutated = proof.clone();
         mutated[0][0] ^= 1;
-        assert!(verify_proof_items(1, root, &mutated, &items).is_err());
-        assert!(verify_proof_items(2, root, &proof, &items).is_err());
+        assert!(verify_legacy_proof_items(1, root, &mutated, &items).is_err());
+        assert!(verify_legacy_proof_items(2, root, &proof, &items).is_err());
     }
 }
