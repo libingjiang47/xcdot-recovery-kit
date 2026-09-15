@@ -61,7 +61,11 @@ function validateTimeouts(
   connectTimeoutMs: number,
   bodyTimeoutMs: number,
 ): void {
-  if (![timeoutMs, connectTimeoutMs, bodyTimeoutMs].every(Number.isInteger) || timeoutMs < 1) {
+  if (
+    ![timeoutMs, connectTimeoutMs, bodyTimeoutMs].every(
+      (value) => Number.isInteger(value) && value >= 1,
+    )
+  ) {
     throw new FinalStateStorageBackendUnsupportedError(
       'Dwellir timeouts must be positive integers.',
     );

@@ -1,20 +1,7 @@
-name: Live reproducibility check
+name: Offline reproducibility check
 
 on:
   workflow_dispatch:
-    inputs:
-      substrate_rpc:
-        description: Moonbeam Substrate RPC URL
-        required: true
-        type: string
-      evm_rpc:
-        description: Moonbeam EVM RPC URL
-        required: true
-        type: string
-      block_hash:
-        description: Explicit pinned Moonbeam block hash
-        required: true
-        type: string
 
 jobs:
   reproduce:
@@ -30,7 +17,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: node dist/cli/index.js probe --rpc "${{ inputs.substrate_rpc }}"
-      - run: node dist/cli/index.js inspect --rpc "${{ inputs.substrate_rpc }}" --block-hash "${{ inputs.block_hash }}"
-      - run: node dist/cli/index.js snapshot --rpc "${{ inputs.substrate_rpc }}" --evm-rpc "${{ inputs.evm_rpc }}" --block-hash "${{ inputs.block_hash }}" --out snapshots
-      - run: node dist/cli/index.js verify --rpc "${{ inputs.substrate_rpc }}" --snapshot "$(find snapshots -mindepth 1 -maxdepth 1 -type d | head -1)"
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: sha256sum -c SHA256SUMS
+      - run: NO_NETWORK=1 pnpm verify:release
+      - run: NO_NETWORK=1 pnpm web:build
+      - run: git diff --exit-code -- data SHA256SUMS

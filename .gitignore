@@ -5,6 +5,8 @@ target/
 /diagnostics/
 /snapshots/
 /evidence/
+web/data/
+web/404.html
 work/
 .tmp-snapshot-*/
 .tmp-evidence-*/
