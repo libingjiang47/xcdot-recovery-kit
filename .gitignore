@@ -9,6 +9,8 @@ diagnostics/sqd-xcdot-transfer-discovery/**
 diagnostics/sqd-backward-recovery/**
 work/final-state/
 snapshots/final-state/
+web/data/
+web/404.html
 evidence/migration-recovery-2026-09-14/sources/
 evidence/migration-recovery-2026-09-14/candidates/
 evidence/migration-recovery-2026-09-14/final-state/

@@ -1,19 +1,22 @@
-const DATA = '../data/';
-const state = {
-  snapshot: null,
-  statistics: null,
-  index: {},
-  classifications: {},
-  holders: new Map(),
-};
+const DATA = './data/';
+const BASE_PATH = new URL('./', import.meta.url).pathname.replace(/\/$/, '');
+const state = { snapshot: null, statistics: null, holders: {}, ranked: [], evidence: new Map() };
+const $ = (selector) => document.querySelector(selector);
 
-function formatUnits(value, decimals = 10) {
+function formatPlanck(value, decimals = 10) {
   const amount = BigInt(value);
   const base = 10n ** BigInt(decimals);
   const whole = amount / base;
   const fraction = amount % base;
-  if (fraction === 0n) return whole.toString();
-  return `${whole}.${fraction.toString().padStart(decimals, '0').replace(/0+$/, '')}`;
+  if (fraction === 0n) return whole.toLocaleString('en-US');
+  return `${whole.toLocaleString('en-US')}.${fraction.toString().padStart(decimals, '0').replace(/0+$/, '')}`;
+}
+
+function percent(part, total) {
+  if (BigInt(total) === 0n) return '0.00%';
+  const scaled = (BigInt(part) * 10000n) / BigInt(total);
+  const digits = scaled.toString().padStart(3, '0');
+  return `${digits.slice(0, -2)}.${digits.slice(-2)}%`;
 }
 
 function escapeHtml(value) {
@@ -24,150 +27,310 @@ function escapeHtml(value) {
   );
 }
 
-async function json(path) {
-  return fetch(`${DATA}${path}`).then((response) => {
-    if (!response.ok) throw new Error(`${path}: ${response.status}`);
-    return response.json();
-  });
-}
-async function text(path) {
-  return fetch(`${DATA}${path}`).then((response) => {
-    if (!response.ok) throw new Error(`${path}: ${response.status}`);
-    return response.text();
-  });
+function shortHash(value, start = 10, end = 8) {
+  const text = String(value);
+  return `${text.slice(0, start)}…${text.slice(-end)}`;
 }
 
-function renderSummary() {
-  const snapshot = state.snapshot;
-  const recovery = snapshot.recovery;
-  document.querySelector('#block-number').textContent = Number(
-    snapshot.terminalState.blockNumber,
-  ).toLocaleString();
-  document.querySelector('#snapshot-id').textContent = snapshot.snapshotId;
-  document.querySelector('#state-root').textContent = snapshot.terminalState.stateRoot;
-  document.querySelector('#holder-count').textContent =
-    recovery.positiveHolderAddresses.toLocaleString();
-  document.querySelector('#known-recovered').textContent = formatUnits(recovery.knownBalancePlanck);
-  document.querySelector('#total-supply').textContent = formatUnits(recovery.totalSupplyPlanck);
-  document.querySelector('#unattributed').textContent = formatUnits(recovery.unattributedPlanck);
-  const proof = snapshot.proofStatus;
-  document.querySelector('#proof-status').textContent =
-    `proofs: ${proof.knownBalanceProofsVerified ? 'verified' : 'captured/verification pending'}`;
-  const stats = state.statistics;
-  const classes = ['codePresent', 'noCode', 'unknown'];
-  document.querySelector('#stats-result').innerHTML = classes
-    .map(
-      (key) =>
-        `<div class="stat"><span>${key}</span><strong>${stats.holders[key].toLocaleString()} addresses</strong><span>${formatUnits(stats.balancePlanck[key])} xcDOT</span><small>${stats.percentages.byTotalSupply[key]}% of total supply</small></div>`,
-    )
-    .join('');
+function shortAddress(value) {
+  return shortHash(value, 8, 6);
+}
+
+function typeLabel(classification) {
+  return (
+    { 'code-present': 'Contract', 'no-code': 'EOA', unknown: 'Unknown' }[classification] ??
+    'Unknown'
+  );
+}
+
+function typeHint(classification) {
+  if (classification === 'no-code')
+    return 'No EVM bytecode was present at the terminal block; this does not prove human control.';
+  if (classification === 'code-present') return 'EVM bytecode was present at the terminal block.';
+  return 'Address type was not captured in the frozen dataset.';
+}
+
+async function loadJson(path) {
+  const response = await fetch(`${DATA}${path}`);
+  if (!response.ok) throw new Error(`${path}: ${response.status}`);
+  return response.json();
+}
+
+function showToast(message) {
+  const toast = $('#toast');
+  toast.textContent = message;
+  toast.classList.add('visible');
+  window.setTimeout(() => toast.classList.remove('visible'), 1800);
+}
+
+async function copyText(value, message = 'Copied') {
+  await navigator.clipboard.writeText(value);
+  showToast(message);
+}
+
+function copyButton(value, label = 'Copy') {
+  return `<button class="text-button" data-copy="${escapeHtml(value)}" aria-label="${label}">${label}</button>`;
+}
+
+function header(active) {
+  return `<header class="site-header"><a class="brand" href="./">xcDOT Terminal Snapshot</a><nav aria-label="Primary navigation"><a class="${active === 'home' ? 'active' : ''}" href="./">Home</a><a class="${active === 'statistics' ? 'active' : ''}" href="./statistics">Statistics</a><a class="${active === 'top' ? 'active' : ''}" href="./top">Top</a></nav><div class="header-meta"><span>Moonbeam #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</span><span class="badge verified">Verified Snapshot</span></div></header>`;
+}
+
+function footer() {
+  const recovery = state.snapshot.recovery;
+  return `<footer class="site-footer"><div><strong>Moonbeam terminal block #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</strong><span>${recovery.positiveHolderAddresses.toLocaleString()} known non-zero addresses</span><span>${formatPlanck(recovery.unattributedPlanck)} xcDOT remains unattributed</span></div><div class="footer-links"><span>Static snapshot · ${escapeHtml(state.snapshot.snapshotId)}</span><a href="https://github.com/libingjiang47/xcdot-recovery-kit">GitHub repository</a><a href="./data/holders.csv" download>Download CSV</a><a href="./data/holders.jsonl" download>Download JSONL</a><a href="./data/snapshot.json" download>Download manifest</a><a href="./data/SHA256SUMS" download>SHA256SUMS</a></div></footer>`;
+}
+
+function summaryCards() {
+  const recovery = state.snapshot.recovery;
+  return `<section class="summary-grid" aria-label="Snapshot summary"><article class="stat-card"><span>Known Addresses</span><strong>${recovery.positiveHolderAddresses.toLocaleString()}</strong><small>known non-zero</small></article><article class="stat-card"><span>Known Recovered</span><strong>${formatPlanck(recovery.knownBalancePlanck)}</strong><small>xcDOT</small></article><article class="stat-card"><span>Total Supply</span><strong>${formatPlanck(recovery.totalSupplyPlanck)}</strong><small>xcDOT</small></article><article class="stat-card warning"><span>Unattributed</span><strong>${formatPlanck(recovery.unattributedPlanck)}</strong><small>xcDOT</small></article></section>`;
+}
+
+function renderHero() {
+  const terminal = state.snapshot.terminalState;
+  return `<section class="hero"><p class="eyebrow">Moonbeam · Frozen evidence</p><h1>xcDOT Terminal Snapshot</h1><p class="lede">Query xcDOT balances from Moonbeam's terminal recovered state.</p><div class="hero-facts"><div><span>Moonbeam block</span><strong>${Number(terminal.blockNumber).toLocaleString()}</strong></div><div><span>State root</span><code title="Copy state root" data-copy="${terminal.stateRoot}">${shortHash(terminal.stateRoot)}</code> ${copyButton(terminal.stateRoot)}</div></div></section>`;
 }
 
 function resultFor(address) {
   const normalized = address.trim().toLowerCase();
-  if (!/^0x[0-9a-f]{40}$/.test(normalized)) return { error: 'Invalid H160 address.' };
-  const holder = state.holders.get(normalized);
-  if (!holder) return { missing: true, address: normalized };
-  return {
-    address: normalized,
-    holder,
-    classification: state.classifications[normalized] ?? { classification: 'unknown' },
-    evidence: state.index[normalized],
-  };
+  if (!/^0x[0-9a-f]{40}$/.test(normalized)) return { error: 'Invalid EVM address.' };
+  const holder = state.holders[normalized];
+  return holder ? { address: normalized, holder } : { missing: true, address: normalized };
 }
 
-function renderLookup(result) {
-  const target = document.querySelector('#lookup-result');
+function lookupForm() {
+  return `<section class="panel search-panel"><div class="section-heading"><div><p class="eyebrow">Single address</p><h2>Find an xcDOT balance</h2></div><span class="badge">Offline</span></div><form id="lookup-form"><label class="sr-only" for="address-input">EVM address</label><div class="search-row"><input id="address-input" autocomplete="off" inputmode="text" placeholder="Enter a 0x address" /><button type="submit">Search</button></div></form><div id="lookup-result" class="lookup-placeholder">Enter a canonical H160 address.</div></section>`;
+}
+
+function notFound(result) {
+  return `<div class="notice"><strong>No non-zero balance record was found</strong><p>There is no record for <code>${escapeHtml(result.address)}</code> in the recovered snapshot.</p><p>This does not prove that the address had a zero terminal balance.</p><p>${formatPlanck(state.snapshot.recovery.unattributedPlanck)} xcDOT remains unattributed.</p></div>`;
+}
+
+function evidencePanel(result, proof) {
+  if (!proof)
+    return '<div class="evidence-unavailable">Evidence file unavailable. The frozen balance remains available, but proof details could not be loaded.</div>';
+  const entry = proof.keys[result.holder.keyIndex];
+  if (
+    !entry ||
+    entry.address !== result.address ||
+    entry.balancePlanck !== result.holder.balancePlanck
+  )
+    return '<div class="evidence-unavailable">Evidence file unavailable.</div>';
+  return `<div class="evidence-panel"><div class="evidence-summary"><div><span>Proof Status</span><strong class="good">Verified</strong><small>The stored proof was verified offline against the frozen terminal state root.</small></div><div><span>State Root</span><code>${shortHash(state.snapshot.terminalState.stateRoot)}</code></div><div><span>Proof Bundle</span><code>${proof.proofId}</code></div></div><details><summary>Show technical details</summary><dl class="details"><dt>Block hash</dt><dd><code>${state.snapshot.terminalState.blockHash}</code> ${copyButton(state.snapshot.terminalState.blockHash)}</dd><dt>State root</dt><dd><code>${state.snapshot.terminalState.stateRoot}</code> ${copyButton(state.snapshot.terminalState.stateRoot)}</dd><dt>Solidity storage slot</dt><dd><code>${entry.solidityStorageSlot}</code> ${copyButton(entry.solidityStorageSlot)}</dd><dt>Substrate storage key</dt><dd><code>${entry.substrateStorageKey}</code> ${copyButton(entry.substrateStorageKey)}</dd><dt>Raw storage value</dt><dd><code>${entry.storageValue}</code> ${copyButton(entry.storageValue)}</dd><dt>Proof key index</dt><dd>${result.holder.keyIndex}</dd></dl></details><div class="evidence-actions"><button data-evidence-action="copy">Copy Evidence</button><button class="secondary" data-evidence-action="download">Download Evidence</button></div></div>`;
+}
+
+function renderResult(result) {
+  const target = $('#lookup-result');
   if (result.error) {
-    target.className = 'result bad';
+    target.className = 'lookup-result error';
     target.textContent = result.error;
     return;
   }
   if (result.missing) {
-    target.className = 'result bad';
-    target.innerHTML = `<p>No non-zero balance record was found for <code>${escapeHtml(result.address)}</code>.</p><p>That does not prove a terminal-state balance of zero. The current dataset has ${formatUnits(state.snapshot.recovery.unattributedPlanck)} xcDOT unattributed.</p>`;
+    target.className = 'lookup-result';
+    target.innerHTML = notFound(result);
     return;
   }
-  const classification = result.classification.classification ?? 'unknown';
-  const evidence = result.evidence?.proofId ? 'available' : 'not captured';
-  target.className = 'result';
-  target.innerHTML = `<dl class="result-card"><dt>Address</dt><dd><code>${result.address}</code></dd><dt>Balance</dt><dd><strong>${formatUnits(result.holder.balancePlanck)} xcDOT</strong> (${result.holder.balancePlanck} planck)</dd><dt>Classification</dt><dd>${escapeHtml(classification)}</dd><dt>Terminal block</dt><dd>${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</dd><dt>State root</dt><dd><code>${state.snapshot.terminalState.stateRoot}</code></dd><dt>Proof</dt><dd>${evidence}${evidence === 'available' ? ` · <button id="copy-evidence">Copy Evidence</button>` : ''}</dd></dl>`;
-  if (result.evidence?.proofId)
-    document.querySelector('#copy-evidence').addEventListener('click', () => copyEvidence(result));
+  target.className = 'lookup-result';
+  const { holder } = result;
+  target.innerHTML = `<div class="balance-result"><div class="result-top"><div><span class="address-label">${shortAddress(result.address)}</span><button class="text-button" data-copy="${result.address}">Copy address</button></div><span class="badge">${typeLabel(holder.classification)}</span></div><strong class="balance">${formatPlanck(holder.balancePlanck)} <small>xcDOT</small></strong><dl class="result-fields"><dt>Planck</dt><dd>${holder.balancePlanck}</dd><dt>Address Type</dt><dd title="${typeHint(holder.classification)}">${typeLabel(holder.classification)}</dd><dt>Proof Status</dt><dd id="proof-loading">Loading frozen proof…</dd><dt>Terminal Block</dt><dd>${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</dd></dl></div><div id="evidence-result" class="evidence-wrap"><p class="muted">Loading evidence bundle…</p></div>`;
+  wireGlobalCopy();
+  loadEvidence(result);
 }
 
-async function copyEvidence(result) {
-  const proof = await json(`proofs/balance/${result.evidence.proofId}.json`);
-  const entry = proof.keys[result.evidence.keyIndex];
-  const evidence = {
+function makeEvidence(result, proof) {
+  const entry = proof.keys[result.holder.keyIndex];
+  return {
     schemaVersion: 1,
+    snapshot: {
+      id: state.snapshot.snapshotId,
+      blockNumber: state.snapshot.terminalState.blockNumber,
+      blockHash: state.snapshot.terminalState.blockHash,
+      stateRoot: state.snapshot.terminalState.stateRoot,
+    },
     asset: {
-      symbol: 'xcDOT',
+      symbol: state.snapshot.asset.symbol,
       contract: state.snapshot.asset.contract,
       decimals: state.snapshot.asset.decimals,
     },
-    terminalState: state.snapshot.terminalState,
     holder: {
       address: result.address,
       balancePlanck: result.holder.balancePlanck,
-      balanceXcDOT: formatUnits(result.holder.balancePlanck),
+      balanceXcDOT: formatPlanck(result.holder.balancePlanck),
+      classification: result.holder.classification,
     },
     storage: {
-      soliditySlot: entry.solidityStorageSlot,
-      substrateKey: entry.substrateStorageKey,
-      value: entry.storageValue,
+      solidityStorageSlot: entry.solidityStorageSlot,
+      substrateStorageKey: entry.substrateStorageKey,
+      storageValue: entry.storageValue,
     },
-    proof: { type: 'substrate-state_getReadProof', nodes: proof.proofNodes },
+    proof: { type: 'substrate-state_getReadProof', verifiedOffline: true, nodes: proof.proofNodes },
   };
-  await navigator.clipboard.writeText(JSON.stringify(evidence, null, 2));
-  document.querySelector('#copy-evidence').textContent = 'Copied';
 }
 
-function addressesFromText(value) {
-  return value
-    .split(/[,\s]+/)
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+async function loadEvidence(result) {
+  const meta = result.holder;
+  let proof = state.evidence.get(meta.proofId);
+  if (!proof) {
+    try {
+      proof = await loadJson(`proofs/balance/${meta.proofId}.json`);
+      state.evidence.set(meta.proofId, proof);
+    } catch {
+      $('#proof-loading').textContent = 'Unavailable';
+      $('#evidence-result').innerHTML = evidencePanel(result, null);
+      return;
+    }
+  }
+  $('#proof-loading').textContent = 'Verified';
+  $('#proof-loading').className = 'good';
+  $('#evidence-result').innerHTML = evidencePanel(result, proof);
+  wireGlobalCopy();
+  for (const button of document.querySelectorAll('[data-evidence-action]'))
+    button.addEventListener('click', async () => {
+      const serialized = JSON.stringify(makeEvidence(result, proof), null, 2);
+      if (button.dataset.evidenceAction === 'copy') await copyText(serialized, 'Evidence copied');
+      else {
+        const url = URL.createObjectURL(new Blob([serialized], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `xcdot-evidence-${result.address}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        showToast('Evidence downloaded');
+      }
+    });
 }
-function renderBatch() {
-  const rows = addressesFromText(document.querySelector('#batch-input').value).map(resultFor);
-  document.querySelector('#batch-result').innerHTML =
-    rows.length === 0
-      ? ''
-      : `<table><thead><tr><th>Address</th><th>Status</th><th>Balance</th><th>Classification</th></tr></thead><tbody>${rows.map((row) => (row.error ? `<tr><td>${escapeHtml(row.error)}</td><td>invalid-address</td><td>—</td><td>—</td></tr>` : row.missing ? `<tr><td><code>${row.address}</code></td><td>not-in-recovered-snapshot</td><td>—</td><td>—</td></tr>` : `<tr><td><code>${row.address}</code></td><td>known-positive</td><td>${formatUnits(row.holder.balancePlanck)}</td><td>${escapeHtml(row.classification.classification ?? 'unknown')}</td></tr>`)).join('')}</tbody></table>`;
+
+function wireGlobalCopy() {
+  for (const button of document.querySelectorAll('[data-copy]')) {
+    if (button.dataset.copyBound) continue;
+    button.dataset.copyBound = 'true';
+    button.addEventListener('click', () => copyText(button.dataset.copy));
+  }
+}
+
+function renderHome() {
+  $('#app').innerHTML =
+    `${header('home')}<main>${renderHero()}${lookupForm()}${summaryCards()}<section class="panel integrity-note"><div><p class="eyebrow">Evidence boundary</p><h2>Frozen, static, and auditable</h2><p>Balances and proofs come from the repository snapshot. This site does not query Moonbeam or claim that the unattributed amount belongs to any particular address.</p></div><a class="button secondary" href="./statistics">View statistics</a></section></main>${footer()}`;
+  wireGlobalCopy();
+  const input = $('#address-input');
+  const query = new URLSearchParams(location.search).get('address');
+  $('#lookup-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const value = input.value.trim();
+    history.pushState({}, '', value ? `./?address=${encodeURIComponent(value)}` : './');
+    renderResult(resultFor(value));
+  });
+  if (query) {
+    input.value = query;
+    renderResult(resultFor(query));
+  }
+}
+
+function metricCards() {
+  const summary = state.statistics.snapshot;
+  return `<section class="summary-grid"><article class="stat-card"><span>Known Addresses</span><strong>${summary.knownPositiveAddresses.toLocaleString()}</strong></article><article class="stat-card"><span>Known Recovered</span><strong>${formatPlanck(summary.knownRecoveredPlanck)}</strong><small>xcDOT</small></article><article class="stat-card"><span>Total Supply</span><strong>${formatPlanck(summary.totalSupplyPlanck)}</strong><small>xcDOT</small></article><article class="stat-card warning"><span>Unattributed</span><strong>${formatPlanck(summary.unattributedPlanck)}</strong><small>xcDOT</small></article></section>`;
+}
+
+function statBar(label, value, total, detail) {
+  const width =
+    total === '0' ? 0 : Math.min(100, Number((BigInt(value) * 10000n) / BigInt(total)) / 100);
+  return `<div class="bar-row"><div><span>${label}</span><strong>${detail}</strong></div><div class="bar"><i style="width:${width}%"></i></div></div>`;
+}
+
+function renderStatistics() {
+  const stats = state.statistics;
+  const totalSupply = stats.snapshot.totalSupplyPlanck;
+  const known = stats.snapshot.knownRecoveredPlanck;
+  const types = [
+    ['noCode', 'EOA'],
+    ['codePresent', 'Contract'],
+    ['unknown', 'Unknown'],
+  ];
+  const distribution = stats.distribution;
+  const concentration = stats.concentration;
+  const maxBucket = Math.max(...distribution.buckets.map((item) => item.addressCount), 1);
+  $('#app').innerHTML =
+    `${header('statistics')}<main><section class="page-heading"><p class="eyebrow">Frozen snapshot analysis</p><h1>Statistics</h1><p class="lede">A build-time summary of the known non-zero addresses in the terminal snapshot.</p></section>${metricCards()}<section class="two-column"><section class="panel"><div class="section-heading"><div><p class="eyebrow">Address type</p><h2>Classification</h2></div><span class="muted">${stats.legacy?.classificationStatus === 'NOT_CAPTURED' ? 'Classification not captured' : 'Terminal classification'}</span></div>${types.map(([key, label]) => statBar(label, stats.classification[key].balancePlanck, known, `${stats.classification[key].count.toLocaleString()} · ${formatPlanck(stats.classification[key].balancePlanck)} xcDOT`)).join('')}</section><section class="panel"><div class="section-heading"><div><p class="eyebrow">Balance type</p><h2>Share of total supply</h2></div></div>${types.map(([key, label]) => statBar(label, stats.classification[key].balancePlanck, totalSupply, `${stats.classification[key].totalSupplyPercentage}%`)).join('')}</section></section><section class="two-column"><section class="panel"><div class="section-heading"><div><p class="eyebrow">Distribution</p><h2>Holder balance distribution</h2></div><span class="muted">xcDOT per address</span></div><div class="histogram">${distribution.buckets.map((bucket) => `<div class="histogram-col"><div class="histogram-bar" style="height:${Math.max(6, (bucket.addressCount / maxBucket) * 100)}%" title="${bucket.addressCount.toLocaleString()} addresses"></div><span>${bucket.label}</span><small>${bucket.addressCount.toLocaleString()}</small></div>`).join('')}</div><div class="metric-list"><span>Mean <strong>${formatPlanck(distribution.meanPlanck)} xcDOT</strong></span><span>Median <strong>${formatPlanck(distribution.medianPlanck)} xcDOT</strong></span><span>P25 <strong>${formatPlanck(distribution.p25Planck)} xcDOT</strong></span><span>P75 <strong>${formatPlanck(distribution.p75Planck)} xcDOT</strong></span><span>P90 <strong>${formatPlanck(distribution.p90Planck)} xcDOT</strong></span><span>P95 <strong>${formatPlanck(distribution.p95Planck)} xcDOT</strong></span><span>P99 <strong>${formatPlanck(distribution.p99Planck)} xcDOT</strong></span><span>Largest <strong>${formatPlanck(distribution.largestPlanck)} xcDOT</strong></span></div></section><section class="panel"><div class="section-heading"><div><p class="eyebrow">Concentration</p><h2>Known balance concentration</h2></div><span class="muted">share of total supply</span></div>${statBar('Top 10', concentration.top10Planck, totalSupply, `${formatPlanck(concentration.top10Planck)} xcDOT · ${percent(concentration.top10Planck, totalSupply)}`)}${statBar('Top 100', concentration.top100Planck, totalSupply, `${formatPlanck(concentration.top100Planck)} xcDOT · ${percent(concentration.top100Planck, totalSupply)}`)}${statBar('Top 1,000', concentration.top1000Planck, totalSupply, `${formatPlanck(concentration.top1000Planck)} xcDOT · ${percent(concentration.top1000Planck, totalSupply)}`)}${statBar('Remaining', concentration.remainingPlanck, totalSupply, `${formatPlanck(concentration.remainingPlanck)} xcDOT · ${percent(concentration.remainingPlanck, totalSupply)}`)}</section></section></main>${footer()}`;
+}
+
+function updateTopUrl(type, page, size, query) {
+  const params = new URLSearchParams();
+  if (type !== 'all') params.set('type', type);
+  if (page !== 1) params.set('page', page);
+  if (size !== 50) params.set('size', size);
+  if (query) params.set('q', query);
+  history.replaceState({}, '', `./top${params.toString() ? `?${params}` : ''}`);
+}
+
+function renderTop() {
+  const params = new URLSearchParams(location.search);
+  const type = params.get('type') ?? 'all';
+  const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+  const size = [25, 50, 100].includes(Number(params.get('size'))) ? Number(params.get('size')) : 50;
+  const query = (params.get('q') ?? '').toLowerCase();
+  const filtered = state.ranked.filter(
+    (holder) =>
+      (type === 'all' || holder.classification === type) && holder.address.includes(query),
+  );
+  const pageCount = Math.max(1, Math.ceil(filtered.length / size));
+  const currentPage = Math.min(page, pageCount);
+  const rows = filtered.slice((currentPage - 1) * size, currentPage * size);
+  const totalSupply = state.snapshot.recovery.totalSupplyPlanck;
+  $('#app').innerHTML =
+    `${header('top')}<main><section class="page-heading"><p class="eyebrow">Known non-zero addresses</p><h1>Top xcDOT Holders</h1><p class="lede">Known non-zero addresses at Moonbeam terminal block #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}.</p></section><section class="panel top-controls"><div class="filters" role="group" aria-label="Address type filter">${[
+      ['all', 'All'],
+      ['no-code', 'EOA'],
+      ['code-present', 'Contract'],
+      ['unknown', 'Unknown'],
+    ]
+      .map(
+        ([value, label]) =>
+          `<button class="${type === value ? '' : 'secondary'}" data-type-filter="${value}">${label}</button>`,
+      )
+      .join(
+        '',
+      )}</div><label class="filter-search"><span class="sr-only">Filter address</span><input id="top-query" value="${escapeHtml(query)}" placeholder="Filter address" /></label><label class="page-size">Rows <select id="page-size"><option ${size === 25 ? 'selected' : ''}>25</option><option ${size === 50 ? 'selected' : ''}>50</option><option ${size === 100 ? 'selected' : ''}>100</option></select></label></section><section class="panel table-panel"><div class="table-meta"><span>${filtered.length.toLocaleString()} matching addresses</span><span>Page ${currentPage} of ${pageCount}</span></div><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Address</th><th>Type</th><th>Balance</th><th>Share</th></tr></thead><tbody>${rows.map((holder) => `<tr><td>#${holder.rank}</td><td><a class="address-link" href="./?address=${holder.address}" title="${holder.address}">${shortAddress(holder.address)}</a> ${copyButton(holder.address, 'Copy')}</td><td><span class="type-badge ${holder.classification}">${typeLabel(holder.classification)}</span></td><td><strong>${formatPlanck(holder.balancePlanck)}</strong> xcDOT</td><td>${percent(holder.balancePlanck, totalSupply)}</td></tr>`).join('')}</tbody></table></div><div class="pagination"><button class="secondary" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>Previous</button><span>${currentPage} / ${pageCount}</span><button class="secondary" data-page="${currentPage + 1}" ${currentPage === pageCount ? 'disabled' : ''}>Next</button></div></section></main>${footer()}`;
+  for (const button of document.querySelectorAll('[data-type-filter]'))
+    button.addEventListener('click', () => {
+      updateTopUrl(button.dataset.typeFilter, 1, size, query);
+      renderTop();
+    });
+  $('#top-query').addEventListener('input', (event) => {
+    updateTopUrl(type, 1, size, event.target.value.toLowerCase());
+    renderTop();
+  });
+  $('#page-size').addEventListener('change', (event) => {
+    updateTopUrl(type, 1, Number(event.target.value), query);
+    renderTop();
+  });
+  for (const button of document.querySelectorAll('[data-page]'))
+    button.addEventListener('click', () => {
+      updateTopUrl(type, Number(button.dataset.page), size, query);
+      renderTop();
+    });
+  wireGlobalCopy();
+}
+
+function render() {
+  const path = location.pathname.slice(BASE_PATH.length).replace(/\/$/, '') || '/';
+  if (path === '/statistics') renderStatistics();
+  else if (path === '/top') renderTop();
+  else renderHome();
 }
 
 async function main() {
-  const [snapshot, statistics, index, classifications, holdersText] = await Promise.all([
-    json('snapshot.json'),
-    json('statistics.json'),
-    json('evidence-index.json'),
-    json('classification.json'),
-    text('holders.jsonl'),
+  [state.snapshot, state.statistics, state.holders, state.ranked] = await Promise.all([
+    loadJson('snapshot.json'),
+    loadJson('statistics.json'),
+    loadJson('holders-index.json'),
+    loadJson('holders-ranked.json'),
   ]);
-  state.snapshot = snapshot;
-  state.statistics = statistics;
-  state.index = index;
-  state.classifications = classifications.accounts ?? {};
-  for (const line of holdersText.trim().split('\n')) {
-    if (!line) continue;
-    const holder = JSON.parse(line);
-    state.holders.set(holder.address, holder);
-  }
-  renderSummary();
-  document
-    .querySelector('#lookup-button')
-    .addEventListener('click', () =>
-      renderLookup(resultFor(document.querySelector('#address-input').value)),
-    );
-  document.querySelector('#address-input').addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') renderLookup(resultFor(event.target.value));
-  });
-  document.querySelector('#batch-button').addEventListener('click', renderBatch);
+  render();
 }
 
-main().catch((error) => {
-  document.querySelector('#lookup-result').className = 'result bad';
-  document.querySelector('#lookup-result').textContent =
-    `Local snapshot could not be loaded: ${error.message}`;
+window.addEventListener('popstate', render);
+main().catch(() => {
+  $('#app').innerHTML =
+    '<main class="fatal"><h1>Snapshot data could not be loaded.</h1><p>The static evidence files are unavailable. No live RPC fallback is used.</p></main>';
 });
