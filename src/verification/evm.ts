@@ -1,4 +1,4 @@
-import { keccak256, type Address, type Hex, type PublicClient } from 'viem';
+import { type Address, type PublicClient } from 'viem';
 import { assertExpectedXcDotIdentity } from '../asset/constants.js';
 import { BlockHashMismatchError } from '../utils/errors.js';
 import type {
@@ -10,6 +10,7 @@ import type {
 import { holderSupplyMatches } from './supply.js';
 import { retryRpc, withConcurrency } from './providers.js';
 import { compareCanonicalStrings } from '../utils/order.js';
+import { classifyHolderAccounts } from './code.js';
 
 export { createEvmClient } from './providers.js';
 
@@ -130,26 +131,12 @@ export async function verifyEvmSnapshot(
         : 'FAIL',
   };
 
-  const classifications: AccountClassification[] = [];
-  await withConcurrency(holders, concurrency, async (holder) => {
-    try {
-      const code = await client.getCode({ address: holder.address as Address, blockNumber });
-      if (code === '0x') {
-        classifications.push({ address: holder.address, codeStatus: 'no_code' });
-      } else if (code) {
-        classifications.push({
-          address: holder.address,
-          codeStatus: 'has_code',
-          codeSize: (code.length - 2) / 2,
-          codeHash: keccak256(code as Hex),
-        });
-      } else {
-        classifications.push({ address: holder.address, codeStatus: 'unknown' });
-      }
-    } catch {
-      classifications.push({ address: holder.address, codeStatus: 'unknown' });
-    }
-  });
+  const classifications: AccountClassification[] = await classifyHolderAccounts(
+    client,
+    holders,
+    blockNumber,
+    concurrency,
+  );
 
   return {
     verification,

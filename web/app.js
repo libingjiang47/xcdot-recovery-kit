@@ -38,8 +38,12 @@ function shortAddress(value) {
 
 function typeLabel(classification) {
   return (
-    { 'code-present': 'Contract', 'no-code': 'EOA', unknown: 'Unknown' }[classification] ??
-    'Unknown'
+    {
+      'code-present': 'Contract',
+      'no-code': 'EOA',
+      'system-precompile': 'System',
+      unknown: 'Unknown',
+    }[classification] ?? 'Unknown'
   );
 }
 
@@ -47,7 +51,9 @@ function typeHint(classification) {
   if (classification === 'no-code')
     return 'No EVM bytecode was present at the terminal block; this does not prove human control.';
   if (classification === 'code-present') return 'EVM bytecode was present at the terminal block.';
-  return 'Address type was not captured in the frozen dataset.';
+  if (classification === 'system-precompile')
+    return 'Active Moonbeam system precompile at the terminal runtime.';
+  return 'Address type could not be determined.';
 }
 
 async function loadJson(path) {
@@ -78,17 +84,12 @@ function header(active) {
 
 function footer() {
   const recovery = state.snapshot.recovery;
-  return `<footer class="site-footer"><div><strong>Moonbeam terminal block #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</strong><span>${recovery.positiveHolderAddresses.toLocaleString()} known non-zero addresses</span><span>${formatPlanck(recovery.unattributedPlanck)} xcDOT remains unattributed</span></div><div class="footer-links"><span>Static snapshot · ${escapeHtml(state.snapshot.snapshotId)}</span><a href="https://github.com/libingjiang47/xcdot-recovery-kit">GitHub repository</a><a href="./data/holders.csv" download>Download CSV</a><a href="./data/holders.jsonl" download>Download JSONL</a><a href="./data/snapshot.json" download>Download manifest</a><a href="./data/SHA256SUMS" download>SHA256SUMS</a></div></footer>`;
+  return `<footer class="site-footer"><div class="footer-meta"><strong>Moonbeam terminal block #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</strong><span>${recovery.positiveHolderAddresses.toLocaleString()} known non-zero addresses</span><span>${formatPlanck(recovery.unattributedPlanck)} xcDOT remains unattributed</span><span>Static snapshot · ${escapeHtml(state.snapshot.snapshotId)}</span></div><div class="footer-links"><a href="https://github.com/libingjiang47/xcdot-recovery-kit">GitHub repository</a><a href="./data/holders.csv" download>Download CSV</a><a href="./data/holders.jsonl" download>Download JSONL</a><a href="./data/manifest.json" download>Download manifest</a><a href="./data/SHA256SUMS" download>SHA256SUMS</a></div></footer>`;
 }
 
 function summaryCards() {
   const recovery = state.snapshot.recovery;
   return `<section class="summary-grid" aria-label="Snapshot summary"><article class="stat-card"><span>Known Addresses</span><strong>${recovery.positiveHolderAddresses.toLocaleString()}</strong><small>known non-zero</small></article><article class="stat-card"><span>Known Recovered</span><strong>${formatPlanck(recovery.knownBalancePlanck)}</strong><small>xcDOT</small></article><article class="stat-card"><span>Total Supply</span><strong>${formatPlanck(recovery.totalSupplyPlanck)}</strong><small>xcDOT</small></article><article class="stat-card warning"><span>Unattributed</span><strong>${formatPlanck(recovery.unattributedPlanck)}</strong><small>xcDOT</small></article></section>`;
-}
-
-function renderHero() {
-  const terminal = state.snapshot.terminalState;
-  return `<section class="hero"><p class="eyebrow">Moonbeam · Frozen evidence</p><h1>xcDOT Terminal Snapshot</h1><p class="lede">Query xcDOT balances from Moonbeam's terminal recovered state.</p><div class="hero-facts"><div><span>Moonbeam block</span><strong>${Number(terminal.blockNumber).toLocaleString()}</strong></div><div><span>State root</span><code title="Copy state root" data-copy="${terminal.stateRoot}">${shortHash(terminal.stateRoot)}</code> ${copyButton(terminal.stateRoot)}</div></div></section>`;
 }
 
 function resultFor(address) {
@@ -99,7 +100,8 @@ function resultFor(address) {
 }
 
 function lookupForm() {
-  return `<section class="panel search-panel"><div class="section-heading"><div><p class="eyebrow">Single address</p><h2>Find an xcDOT balance</h2></div><span class="badge">Offline</span></div><form id="lookup-form"><label class="sr-only" for="address-input">EVM address</label><div class="search-row"><input id="address-input" autocomplete="off" inputmode="text" placeholder="Enter a 0x address" /><button type="submit">Search</button></div></form><div id="lookup-result" class="lookup-placeholder">Enter a canonical H160 address.</div></section>`;
+  const terminal = state.snapshot.terminalState;
+  return `<section class="panel search-panel"><div class="section-heading"><h2>Find an xcDOT balance</h2></div><form id="lookup-form"><label class="sr-only" for="address-input">EVM address</label><div class="search-row"><input id="address-input" autocomplete="off" inputmode="text" placeholder="Enter a 0x address" /><button type="submit">Search</button></div></form><div class="terminal-context"><div><span>Moonbeam block</span><strong>${Number(terminal.blockNumber).toLocaleString()}</strong></div><div><span>State root</span><div><code title="${terminal.stateRoot}">${shortHash(terminal.stateRoot)}</code> ${copyButton(terminal.stateRoot)}</div></div></div><div id="lookup-result" class="lookup-placeholder">Enter a canonical H160 address.</div></section>`;
 }
 
 function notFound(result) {
@@ -133,7 +135,7 @@ function renderResult(result) {
   }
   target.className = 'lookup-result';
   const { holder } = result;
-  target.innerHTML = `<div class="balance-result"><div class="result-top"><div><span class="address-label">${shortAddress(result.address)}</span><button class="text-button" data-copy="${result.address}">Copy address</button></div><span class="badge">${typeLabel(holder.classification)}</span></div><strong class="balance">${formatPlanck(holder.balancePlanck)} <small>xcDOT</small></strong><dl class="result-fields"><dt>Planck</dt><dd>${holder.balancePlanck}</dd><dt>Address Type</dt><dd title="${typeHint(holder.classification)}">${typeLabel(holder.classification)}</dd><dt>Proof Status</dt><dd id="proof-loading">Loading frozen proof…</dd><dt>Terminal Block</dt><dd>${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</dd></dl></div><div id="evidence-result" class="evidence-wrap"><p class="muted">Loading evidence bundle…</p></div>`;
+  target.innerHTML = `<div class="balance-result"><div class="result-top"><div><span class="address-label">${shortAddress(result.address)}</span><button class="text-button" data-copy="${result.address}">Copy address</button></div><span class="badge ${holder.classification}">${typeLabel(holder.classification)}</span></div><strong class="balance">${formatPlanck(holder.balancePlanck)} <small>xcDOT</small></strong><dl class="result-fields"><dt>Planck</dt><dd>${holder.balancePlanck}</dd><dt>Address Type</dt><dd title="${typeHint(holder.classification)}">${typeLabel(holder.classification)}</dd><dt>Proof Status</dt><dd id="proof-loading">Loading frozen proof…</dd><dt>Terminal Block</dt><dd>${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</dd></dl></div><div id="evidence-result" class="evidence-wrap"><p class="muted">Loading evidence bundle…</p></div>`;
   wireGlobalCopy();
   loadEvidence(result);
 }
@@ -210,8 +212,7 @@ function wireGlobalCopy() {
 }
 
 function renderHome() {
-  $('#app').innerHTML =
-    `${header('home')}<main>${renderHero()}${lookupForm()}${summaryCards()}<section class="panel integrity-note"><div><p class="eyebrow">Evidence boundary</p><h2>Frozen, static, and auditable</h2><p>Balances and proofs come from the repository snapshot. This site does not query Moonbeam or claim that the unattributed amount belongs to any particular address.</p></div><a class="button secondary" href="./statistics">View statistics</a></section></main>${footer()}`;
+  $('#app').innerHTML = `${header('home')}<main>${lookupForm()}${summaryCards()}</main>${footer()}`;
   wireGlobalCopy();
   const input = $('#address-input');
   const query = new URLSearchParams(location.search).get('address');
@@ -233,8 +234,7 @@ function metricCards() {
 }
 
 function statBar(label, value, total, detail) {
-  const width =
-    total === '0' ? 0 : Math.min(100, Number((BigInt(value) * 10000n) / BigInt(total)) / 100);
+  const width = Math.min(100, Number((BigInt(value) * 10000n) / BigInt(total)) / 100);
   return `<div class="bar-row"><div><span>${label}</span><strong>${detail}</strong></div><div class="bar"><i style="width:${width}%"></i></div></div>`;
 }
 
@@ -245,13 +245,27 @@ function renderStatistics() {
   const types = [
     ['noCode', 'EOA'],
     ['codePresent', 'Contract'],
-    ['unknown', 'Unknown'],
+    ['systemPrecompile', 'System'],
+    ...(stats.classification.unknown.count > 0 ? [['unknown', 'Unknown']] : []),
   ];
   const distribution = stats.distribution;
   const concentration = stats.concentration;
   const maxBucket = Math.max(...distribution.buckets.map((item) => item.addressCount), 1);
+  const classificationBars = (denominator, useBalanceDetail) =>
+    types
+      .map(([key, label]) =>
+        statBar(
+          label,
+          stats.classification[key].balancePlanck,
+          denominator,
+          useBalanceDetail
+            ? `${stats.classification[key].count.toLocaleString()} · ${formatPlanck(stats.classification[key].balancePlanck)} xcDOT`
+            : `${stats.classification[key].totalSupplyPercentage}%`,
+        ),
+      )
+      .join('');
   $('#app').innerHTML =
-    `${header('statistics')}<main><section class="page-heading"><p class="eyebrow">Frozen snapshot analysis</p><h1>Statistics</h1><p class="lede">A build-time summary of the known non-zero addresses in the terminal snapshot.</p></section>${metricCards()}<section class="two-column"><section class="panel"><div class="section-heading"><div><p class="eyebrow">Address type</p><h2>Classification</h2></div><span class="muted">${stats.legacy?.classificationStatus === 'NOT_CAPTURED' ? 'Classification not captured' : 'Terminal classification'}</span></div>${types.map(([key, label]) => statBar(label, stats.classification[key].balancePlanck, known, `${stats.classification[key].count.toLocaleString()} · ${formatPlanck(stats.classification[key].balancePlanck)} xcDOT`)).join('')}</section><section class="panel"><div class="section-heading"><div><p class="eyebrow">Balance type</p><h2>Share of total supply</h2></div></div>${types.map(([key, label]) => statBar(label, stats.classification[key].balancePlanck, totalSupply, `${stats.classification[key].totalSupplyPercentage}%`)).join('')}</section></section><section class="two-column"><section class="panel"><div class="section-heading"><div><p class="eyebrow">Distribution</p><h2>Holder balance distribution</h2></div><span class="muted">xcDOT per address</span></div><div class="histogram">${distribution.buckets.map((bucket) => `<div class="histogram-col"><div class="histogram-bar" style="height:${Math.max(6, (bucket.addressCount / maxBucket) * 100)}%" title="${bucket.addressCount.toLocaleString()} addresses"></div><span>${bucket.label}</span><small>${bucket.addressCount.toLocaleString()}</small></div>`).join('')}</div><div class="metric-list"><span>Mean <strong>${formatPlanck(distribution.meanPlanck)} xcDOT</strong></span><span>Median <strong>${formatPlanck(distribution.medianPlanck)} xcDOT</strong></span><span>P25 <strong>${formatPlanck(distribution.p25Planck)} xcDOT</strong></span><span>P75 <strong>${formatPlanck(distribution.p75Planck)} xcDOT</strong></span><span>P90 <strong>${formatPlanck(distribution.p90Planck)} xcDOT</strong></span><span>P95 <strong>${formatPlanck(distribution.p95Planck)} xcDOT</strong></span><span>P99 <strong>${formatPlanck(distribution.p99Planck)} xcDOT</strong></span><span>Largest <strong>${formatPlanck(distribution.largestPlanck)} xcDOT</strong></span></div></section><section class="panel"><div class="section-heading"><div><p class="eyebrow">Concentration</p><h2>Known balance concentration</h2></div><span class="muted">share of total supply</span></div>${statBar('Top 10', concentration.top10Planck, totalSupply, `${formatPlanck(concentration.top10Planck)} xcDOT · ${percent(concentration.top10Planck, totalSupply)}`)}${statBar('Top 100', concentration.top100Planck, totalSupply, `${formatPlanck(concentration.top100Planck)} xcDOT · ${percent(concentration.top100Planck, totalSupply)}`)}${statBar('Top 1,000', concentration.top1000Planck, totalSupply, `${formatPlanck(concentration.top1000Planck)} xcDOT · ${percent(concentration.top1000Planck, totalSupply)}`)}${statBar('Remaining', concentration.remainingPlanck, totalSupply, `${formatPlanck(concentration.remainingPlanck)} xcDOT · ${percent(concentration.remainingPlanck, totalSupply)}`)}</section></section></main>${footer()}`;
+    `${header('statistics')}<main><section class="page-heading"><p class="eyebrow">Frozen snapshot analysis</p><h1>Statistics</h1><p class="lede">A build-time summary of the known non-zero addresses in the terminal snapshot.</p></section>${metricCards()}<section class="two-column"><section class="panel"><div class="section-heading"><div><p class="eyebrow">Address type</p><h2>Classification</h2></div><span class="muted">Terminal classification</span></div>${classificationBars(known, true)}</section><section class="panel"><div class="section-heading"><div><p class="eyebrow">Balance type</p><h2>Share of total supply</h2></div></div>${classificationBars(totalSupply, false)}</section></section><section class="two-column"><section class="panel"><div class="section-heading"><div><p class="eyebrow">Distribution</p><h2>Holder balance distribution</h2></div><span class="muted">xcDOT per address</span></div><div class="histogram">${distribution.buckets.map((bucket) => `<div class="histogram-col"><div class="histogram-bar" style="height:${Math.max(6, (bucket.addressCount / maxBucket) * 100)}%" title="${bucket.addressCount.toLocaleString()} addresses"></div><span>${bucket.label}</span><small>${bucket.addressCount.toLocaleString()}</small></div>`).join('')}</div></section><section class="panel"><div class="section-heading"><div><p class="eyebrow">Concentration</p><h2>Known balance concentration</h2></div><span class="muted">share of total supply</span></div>${statBar('Top 10', concentration.top10Planck, totalSupply, `${formatPlanck(concentration.top10Planck)} xcDOT · ${percent(concentration.top10Planck, totalSupply)}`)}${statBar('Top 100', concentration.top100Planck, totalSupply, `${formatPlanck(concentration.top100Planck)} xcDOT · ${percent(concentration.top100Planck, totalSupply)}`)}${statBar('Top 1,000', concentration.top1000Planck, totalSupply, `${formatPlanck(concentration.top1000Planck)} xcDOT · ${percent(concentration.top1000Planck, totalSupply)}`)}${statBar('Remaining', concentration.remainingPlanck, totalSupply, `${formatPlanck(concentration.remainingPlanck)} xcDOT · ${percent(concentration.remainingPlanck, totalSupply)}`)}</section></section></main>${footer()}`;
 }
 
 function updateTopUrl(type, page, size, query) {
@@ -277,20 +291,15 @@ function renderTop() {
   const currentPage = Math.min(page, pageCount);
   const rows = filtered.slice((currentPage - 1) * size, currentPage * size);
   const totalSupply = state.snapshot.recovery.totalSupplyPlanck;
+  const filterOptions = [
+    ['all', 'All'],
+    ['no-code', 'EOA'],
+    ['code-present', 'Contract'],
+    ['system-precompile', 'System'],
+    ...(state.statistics.classification.unknown.count > 0 ? [['unknown', 'Unknown']] : []),
+  ];
   $('#app').innerHTML =
-    `${header('top')}<main><section class="page-heading"><p class="eyebrow">Known non-zero addresses</p><h1>Top xcDOT Holders</h1><p class="lede">Known non-zero addresses at Moonbeam terminal block #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}.</p></section><section class="panel top-controls"><div class="filters" role="group" aria-label="Address type filter">${[
-      ['all', 'All'],
-      ['no-code', 'EOA'],
-      ['code-present', 'Contract'],
-      ['unknown', 'Unknown'],
-    ]
-      .map(
-        ([value, label]) =>
-          `<button class="${type === value ? '' : 'secondary'}" data-type-filter="${value}">${label}</button>`,
-      )
-      .join(
-        '',
-      )}</div><label class="filter-search"><span class="sr-only">Filter address</span><input id="top-query" value="${escapeHtml(query)}" placeholder="Filter address" /></label><label class="page-size">Rows <select id="page-size"><option ${size === 25 ? 'selected' : ''}>25</option><option ${size === 50 ? 'selected' : ''}>50</option><option ${size === 100 ? 'selected' : ''}>100</option></select></label></section><section class="panel table-panel"><div class="table-meta"><span>${filtered.length.toLocaleString()} matching addresses</span><span>Page ${currentPage} of ${pageCount}</span></div><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Address</th><th>Type</th><th>Balance</th><th>Share</th></tr></thead><tbody>${rows.map((holder) => `<tr><td>#${holder.rank}</td><td><a class="address-link" href="./?address=${holder.address}" title="${holder.address}">${shortAddress(holder.address)}</a> ${copyButton(holder.address, 'Copy')}</td><td><span class="type-badge ${holder.classification}">${typeLabel(holder.classification)}</span></td><td><strong>${formatPlanck(holder.balancePlanck)}</strong> xcDOT</td><td>${percent(holder.balancePlanck, totalSupply)}</td></tr>`).join('')}</tbody></table></div><div class="pagination"><button class="secondary" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>Previous</button><span>${currentPage} / ${pageCount}</span><button class="secondary" data-page="${currentPage + 1}" ${currentPage === pageCount ? 'disabled' : ''}>Next</button></div></section></main>${footer()}`;
+    `${header('top')}<main><section class="page-heading"><p class="eyebrow">Known non-zero addresses</p><h1>Top xcDOT Holders</h1><p class="lede">Known non-zero addresses at Moonbeam terminal block #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}.</p></section><section class="panel top-controls"><div class="filters" role="group" aria-label="Address type filter">${filterOptions.map(([value, label]) => `<button class="${type === value ? '' : 'secondary'}" data-type-filter="${value}">${label}</button>`).join('')}</div><label class="filter-search"><span class="sr-only">Filter address</span><input id="top-query" value="${escapeHtml(query)}" placeholder="Filter address" /></label><label class="page-size">Rows <select id="page-size"><option ${size === 25 ? 'selected' : ''}>25</option><option ${size === 50 ? 'selected' : ''}>50</option><option ${size === 100 ? 'selected' : ''}>100</option></select></label></section><section class="panel table-panel"><div class="table-meta"><span>${filtered.length.toLocaleString()} matching addresses</span><span>Page ${currentPage} of ${pageCount}</span></div><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Address</th><th>Type</th><th>Balance</th><th>Share</th></tr></thead><tbody>${rows.map((holder) => `<tr><td>#${holder.rank}</td><td><a class="address-link" href="./?address=${holder.address}" title="${holder.address}">${shortAddress(holder.address)}</a> ${copyButton(holder.address, 'Copy')}</td><td><span class="type-badge ${holder.classification}">${typeLabel(holder.classification)}</span></td><td><strong>${formatPlanck(holder.balancePlanck)}</strong> xcDOT</td><td>${percent(holder.balancePlanck, totalSupply)}</td></tr>`).join('')}</tbody></table></div><div class="pagination"><button class="secondary" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>Previous</button><span>${currentPage} / ${pageCount}</span><button class="secondary" data-page="${currentPage + 1}" ${currentPage === pageCount ? 'disabled' : ''}>Next</button></div></section></main>${footer()}`;
   for (const button of document.querySelectorAll('[data-type-filter]'))
     button.addEventListener('click', () => {
       updateTopUrl(button.dataset.typeFilter, 1, size, query);

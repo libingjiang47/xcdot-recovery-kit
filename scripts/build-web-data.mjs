@@ -37,7 +37,13 @@ function percentage(part, whole) {
 }
 
 function classify(value) {
-  if (value === 'code-present' || value === 'no-code' || value === 'unknown') return value;
+  if (
+    value === 'code-present' ||
+    value === 'no-code' ||
+    value === 'system-precompile' ||
+    value === 'unknown'
+  )
+    return value;
   return 'unknown';
 }
 
@@ -51,8 +57,8 @@ function buildStatistics(holders, classifications, snapshot, existing) {
     return balanceOrder === 0n ? a.address.localeCompare(b.address) : balanceOrder > 0n ? 1 : -1;
   });
   const knownBalance = holders.reduce((sum, holder) => sum + BigInt(holder.balancePlanck), 0n);
-  const counts = { 'code-present': 0, 'no-code': 0, unknown: 0 };
-  const balances = { 'code-present': 0n, 'no-code': 0n, unknown: 0n };
+  const counts = { 'code-present': 0, 'no-code': 0, 'system-precompile': 0, unknown: 0 };
+  const balances = { 'code-present': 0n, 'no-code': 0n, 'system-precompile': 0n, unknown: 0n };
   for (const holder of holders) {
     const type = classify(classifications[holder.address]?.classification);
     counts[type] += 1;
@@ -104,8 +110,14 @@ function buildStatistics(holders, classifications, snapshot, existing) {
     snapshot: recovery,
     terminalState: snapshot.terminalState,
     classification: Object.fromEntries(
-      ['code-present', 'no-code', 'unknown'].map((type) => [
-        type === 'code-present' ? 'codePresent' : type === 'no-code' ? 'noCode' : 'unknown',
+      ['code-present', 'no-code', 'system-precompile', 'unknown'].map((type) => [
+        type === 'code-present'
+          ? 'codePresent'
+          : type === 'no-code'
+            ? 'noCode'
+            : type === 'system-precompile'
+              ? 'systemPrecompile'
+              : 'unknown',
         {
           count: counts[type],
           balancePlanck: balances[type].toString(),
@@ -141,8 +153,13 @@ function main() {
   const snapshot = readJson(join(sourceData, 'snapshot.json'));
   const existingStatistics = readJson(join(sourceData, 'statistics.json'));
   const evidenceIndex = readJson(join(sourceData, 'evidence-index.json'));
-  const classifications = readJson(join(sourceData, 'classification.json')).accounts ?? {};
+  const classificationDocument = readJson(join(sourceData, 'classification.json'));
+  const classifications = classificationDocument.accounts ?? {};
   const holders = readHolders();
+  const statistics = buildStatistics(holders, classifications, snapshot, existingStatistics);
+
+  if (classificationDocument.status !== 'PASS')
+    throw new Error(`WEB_BUILD_FAIL: classification status ${classificationDocument.status}`);
 
   const sum = holders.reduce((total, holder) => total + BigInt(holder.balancePlanck), 0n);
   const totalSupply = BigInt(
@@ -155,6 +172,12 @@ function main() {
     throw new Error(`WEB_BUILD_FAIL: total supply ${totalSupply}`);
   if (totalSupply - sum !== EXPECTED.unattributed)
     throw new Error('WEB_BUILD_FAIL: unattributed balance');
+
+  const unknownCount = holders.filter(
+    (holder) => classify(classifications[holder.address]?.classification) === 'unknown',
+  ).length;
+  if (unknownCount !== 0)
+    throw new Error(`WEB_BUILD_FAIL: unknown classifications ${unknownCount}`);
 
   rmSync(outputData, { recursive: true, force: true });
   mkdirSync(outputData, { recursive: true });
@@ -200,10 +223,7 @@ function main() {
     });
 
   writeJson(join(outputData, 'snapshot.json'), snapshot);
-  writeJson(
-    join(outputData, 'statistics.json'),
-    buildStatistics(holders, classifications, snapshot, existingStatistics),
-  );
+  writeJson(join(outputData, 'statistics.json'), statistics);
   writeJson(join(outputData, 'holders-index.json'), holderIndex);
   writeJson(join(outputData, 'holders-ranked.json'), ranked);
   writeJson(join(outputData, 'evidence-index.json'), evidenceIndex);
@@ -230,6 +250,11 @@ function main() {
   console.log(`TOTAL_SUPPLY_PLANCK=${totalSupply}`);
   console.log(`UNATTRIBUTED_PLANCK=${totalSupply - sum}`);
   console.log(`PROOF_INDEX=PASS`);
+  console.log(`CLASSIFICATION_STATUS=${classificationDocument.status}`);
+  console.log(`CONTRACT_COUNT=${statistics.classification.codePresent.count}`);
+  console.log(`EOA_COUNT=${statistics.classification.noCode.count}`);
+  console.log(`SYSTEM_COUNT=${statistics.classification.systemPrecompile.count}`);
+  console.log(`UNKNOWN_COUNT=${unknownCount}`);
 }
 
 main();

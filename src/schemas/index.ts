@@ -83,7 +83,11 @@ export const ClassificationSchema = z
       z
         .object({
           address,
-          codeStatus: z.enum(['no_code', 'has_code', 'unknown']),
+          codeStatus: z.enum(['no_code', 'has_code', 'system_precompile', 'unknown']),
+          classification: z
+            .enum(['code-present', 'no-code', 'system-precompile', 'unknown'])
+            .optional(),
+          source: z.string().min(1).optional(),
           codeSize: z.number().int().nonnegative().optional(),
           codeHash: hash.optional(),
         })
