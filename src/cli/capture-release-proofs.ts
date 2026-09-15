@@ -9,8 +9,9 @@ export function captureReleaseProofsCommand(): Command {
   command.option('--source <file>', 'Frozen final-balances NDJSON source');
   command.option('--key-file <file>', 'Local file containing DWELLIR_KEY');
   command.option('--endpoint <url>', 'Dwellir endpoint base URL');
-  command.option('--timeout-ms <ms>', 'Overall curl request timeout');
-  command.option('--connect-timeout-ms <ms>', 'Curl connection timeout');
+  command.option('--timeout-ms <ms>', 'Overall curl request timeout', '900000');
+  command.option('--body-timeout-ms <ms>', 'Curl low-speed body timeout', '600000');
+  command.option('--connect-timeout-ms <ms>', 'Curl connection timeout', '120000');
   command.option('--retries <count>', 'Curl retry count');
   command.option('--resume', 'Reuse already captured proof batches');
   command.action(
@@ -20,6 +21,7 @@ export function captureReleaseProofsCommand(): Command {
       keyFile?: string;
       endpoint?: string;
       timeoutMs?: string;
+      bodyTimeoutMs?: string;
       connectTimeoutMs?: string;
       retries?: string;
       resume?: boolean;
@@ -36,6 +38,8 @@ export function captureReleaseProofsCommand(): Command {
       if (options.endpoint !== undefined) captureOptions.endpointBase = options.endpoint;
       const timeoutMs = parse(options.timeoutMs);
       if (timeoutMs !== undefined) captureOptions.timeoutMs = timeoutMs;
+      const bodyTimeoutMs = parse(options.bodyTimeoutMs);
+      if (bodyTimeoutMs !== undefined) captureOptions.bodyTimeoutMs = bodyTimeoutMs;
       const connectTimeoutMs = parse(options.connectTimeoutMs);
       if (connectTimeoutMs !== undefined) captureOptions.connectTimeoutMs = connectTimeoutMs;
       const retries = parse(options.retries);

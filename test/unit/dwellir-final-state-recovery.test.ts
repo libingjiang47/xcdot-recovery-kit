@@ -45,6 +45,17 @@ describe('Dwellir curl timeout arguments', () => {
     expect(args[args.indexOf('--connect-timeout') + 1]).toBe('120');
   });
 
+  it('supports an extended body timeout independently of total timeout', () => {
+    const args = buildDwellirCurlArguments({
+      ...base,
+      timeoutMs: 900_000,
+      bodyTimeoutMs: 600_000,
+    });
+    expect(args[args.indexOf('--max-time') + 1]).toBe('900');
+    expect(args[args.indexOf('--speed-time') + 1]).toBe('600');
+    expect(args[args.indexOf('--speed-limit') + 1]).toBe('1');
+  });
+
   it('rejects a connection timeout longer than the overall timeout', () => {
     expect(() => buildDwellirCurlArguments({ ...base, connectTimeoutMs: 120_001 })).toThrow(
       'connect-timeout-ms must not exceed timeout-ms',

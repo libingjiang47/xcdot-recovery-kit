@@ -288,18 +288,36 @@ function validateTimeouts(timeoutMs: number, connectTimeoutMs: number): void {
   }
 }
 
+function validateBodyTimeout(timeoutMs: number, bodyTimeoutMs: number | undefined): void {
+  if (bodyTimeoutMs === undefined) return;
+  if (!Number.isInteger(bodyTimeoutMs) || bodyTimeoutMs < 1) {
+    throw new FinalStateStorageBackendUnsupportedError(
+      'body-timeout-ms must be a positive integer.',
+      { bodyTimeoutMs },
+    );
+  }
+  if (bodyTimeoutMs > timeoutMs) {
+    throw new FinalStateStorageBackendUnsupportedError(
+      'body-timeout-ms must not exceed timeout-ms.',
+      { bodyTimeoutMs, timeoutMs },
+    );
+  }
+}
+
 export function buildDwellirCurlArguments(options: {
   endpoint: string;
   body: JsonRpcRequest | JsonRpcRequest[];
   timeoutMs: number;
   connectTimeoutMs?: number;
+  bodyTimeoutMs?: number | undefined;
   retries: number;
 }): string[] {
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
   validateTimeouts(options.timeoutMs, connectTimeoutMs);
+  validateBodyTimeout(options.timeoutMs, options.bodyTimeoutMs);
   const connectTimeoutSeconds = Math.max(1, Math.ceil(connectTimeoutMs / 1000));
   const timeoutSeconds = Math.max(1, Math.ceil(options.timeoutMs / 1000));
-  return [
+  const args = [
     '--silent',
     '--show-error',
     '--connect-timeout',
@@ -321,6 +339,18 @@ export function buildDwellirCurlArguments(options: {
     `\n${CURL_STATUS_MARKER}%{http_code}\n`,
     options.endpoint,
   ];
+  if (options.bodyTimeoutMs !== undefined) {
+    const speedTimeIndex = args.indexOf('--max-time') + 2;
+    args.splice(
+      speedTimeIndex,
+      0,
+      '--speed-limit',
+      '1',
+      '--speed-time',
+      String(Math.max(1, Math.ceil(options.bodyTimeoutMs / 1000))),
+    );
+  }
+  return args;
 }
 
 async function curlJson(
@@ -328,14 +358,22 @@ async function curlJson(
   body: JsonRpcRequest | JsonRpcRequest[],
   timeoutMs: number,
   connectTimeoutMs: number,
+  bodyTimeoutMs: number | undefined,
   retries: number,
   key: string,
 ): Promise<unknown> {
   try {
     const result = await execFileAsync(
       'curl',
-      buildDwellirCurlArguments({ endpoint, body, timeoutMs, connectTimeoutMs, retries }),
-      { maxBuffer: 64 * 1024 * 1024 },
+      buildDwellirCurlArguments({
+        endpoint,
+        body,
+        timeoutMs,
+        connectTimeoutMs,
+        bodyTimeoutMs,
+        retries,
+      }),
+      { maxBuffer: 256 * 1024 * 1024 },
     );
     const marker = `\n${CURL_STATUS_MARKER}`;
     const markerIndex = result.stdout.lastIndexOf(marker);
@@ -363,6 +401,7 @@ export function createDwellirCurlTransport(options: {
   endpointBase?: string;
   timeoutMs?: number;
   connectTimeoutMs?: number;
+  bodyTimeoutMs?: number;
   retries?: number;
 }): DwellirRpcTransport {
   const key = options.key.trim();
@@ -370,9 +409,11 @@ export function createDwellirCurlTransport(options: {
   const endpoint = `${endpointBase}${encodeURIComponent(key)}`;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+  const bodyTimeoutMs = options.bodyTimeoutMs;
   const retries = options.retries ?? DEFAULT_RETRIES;
   validateTimeouts(timeoutMs, connectTimeoutMs);
-  return createCurlRpcTransport(endpoint, timeoutMs, connectTimeoutMs, retries, key);
+  validateBodyTimeout(timeoutMs, bodyTimeoutMs);
+  return createCurlRpcTransport(endpoint, timeoutMs, connectTimeoutMs, bodyTimeoutMs, retries, key);
 }
 
 export function createPublicCurlTransport(options: {
@@ -392,13 +433,14 @@ export function createPublicCurlTransport(options: {
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
   const retries = options.retries ?? DEFAULT_RETRIES;
   validateTimeouts(timeoutMs, connectTimeoutMs);
-  return createCurlRpcTransport(endpoint, timeoutMs, connectTimeoutMs, retries, '');
+  return createCurlRpcTransport(endpoint, timeoutMs, connectTimeoutMs, undefined, retries, '');
 }
 
 function createCurlRpcTransport(
   endpoint: string,
   timeoutMs: number,
   connectTimeoutMs: number,
+  bodyTimeoutMs: number | undefined,
   retries: number,
   redactionKey: string,
 ): DwellirRpcTransport {
@@ -406,7 +448,15 @@ function createCurlRpcTransport(
   const rawCall = async (method: string, params: readonly unknown[]): Promise<unknown> => {
     const id = nextId++;
     const payload: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
-    return curlJson(endpoint, payload, timeoutMs, connectTimeoutMs, retries, redactionKey);
+    return curlJson(
+      endpoint,
+      payload,
+      timeoutMs,
+      connectTimeoutMs,
+      bodyTimeoutMs,
+      retries,
+      redactionKey,
+    );
   };
   return {
     rawCall,
@@ -426,6 +476,7 @@ function createCurlRpcTransport(
         requests,
         timeoutMs,
         connectTimeoutMs,
+        bodyTimeoutMs,
         retries,
         redactionKey,
       );

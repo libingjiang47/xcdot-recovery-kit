@@ -31,6 +31,7 @@ export interface CaptureReleaseProofOptions {
   endpointBase?: string;
   timeoutMs?: number;
   connectTimeoutMs?: number;
+  bodyTimeoutMs?: number;
   retries?: number;
   resume?: boolean;
   transport?: DwellirRpcTransport;
@@ -51,6 +52,10 @@ interface ProofEntry {
   substrateStorageKey: string;
   storageValue: string;
   balancePlanck: string;
+}
+
+interface CapturedProof {
+  proofNodes: string[];
 }
 
 function json(value: unknown): string {
@@ -127,6 +132,84 @@ function proofNodes(value: unknown, method: string): { at: string; nodes: string
     at: record.at.toLowerCase(),
     nodes: record.proof.map((node) => (node as string).toLowerCase()),
   };
+}
+
+function isBisectableProofError(error: unknown): boolean {
+  const record = error as { message?: unknown; details?: unknown };
+  const detail = [record?.message, JSON.stringify(record?.details)]
+    .filter((value) => value !== undefined)
+    .join(' ');
+  return /timed out|timeout|ECONNRESET|fetch failed|HTTP (429|502|503|504)|curl:\s*\(\d+\)/i.test(
+    detail,
+  );
+}
+
+function mergedProofNodes(...proofs: CapturedProof[]): string[] {
+  return [...new Set(proofs.flatMap((proof) => proof.proofNodes))];
+}
+
+async function captureProof(
+  transport: DwellirRpcTransport,
+  entries: readonly ProofEntry[],
+  rawPath: string,
+  progress: (message: string) => void,
+): Promise<CapturedProof> {
+  if (await exists(rawPath)) {
+    try {
+      const envelope = JSON.parse(await readFile(rawPath, 'utf8')) as unknown;
+      return {
+        proofNodes: proofNodes(
+          resultFromEnvelope(envelope, 'state_getReadProof'),
+          'state_getReadProof',
+        ).nodes,
+      };
+    } catch {
+      // Re-query malformed or incomplete evidence below.
+    }
+  }
+  try {
+    const envelope = await rawCall(transport, 'state_getReadProof', [
+      entries.map((entry) => entry.substrateStorageKey),
+      MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
+    ]);
+    const parsed = proofNodes(
+      resultFromEnvelope(envelope, 'state_getReadProof'),
+      'state_getReadProof',
+    );
+    await writeAtomic(rawPath, json(envelope));
+    return { proofNodes: parsed.nodes };
+  } catch (error) {
+    if (entries.length <= 1 || !isBisectableProofError(error)) throw error;
+    const midpoint = Math.ceil(entries.length / 2);
+    progress(`BALANCE_PROOF_SPLIT=${entries.length}->${midpoint}+${entries.length - midpoint}`);
+    const left = await captureProof(
+      transport,
+      entries.slice(0, midpoint),
+      `${rawPath}.part-0`,
+      progress,
+    );
+    const right = await captureProof(
+      transport,
+      entries.slice(midpoint),
+      `${rawPath}.part-1`,
+      progress,
+    );
+    const proof = { proofNodes: mergedProofNodes(left, right) };
+    await writeAtomic(
+      rawPath,
+      json({
+        jsonrpc: '2.0',
+        id: 0,
+        result: {
+          at: MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
+          proof: proof.proofNodes,
+        },
+        split: true,
+        partCount: 2,
+      }),
+    );
+    return proof;
+  }
 }
 
 async function rawCall(
@@ -220,6 +303,7 @@ export async function captureReleaseProofs(options: CaptureReleaseProofOptions =
       ...(options.connectTimeoutMs === undefined
         ? {}
         : { connectTimeoutMs: options.connectTimeoutMs }),
+      ...(options.bodyTimeoutMs === undefined ? {} : { bodyTimeoutMs: options.bodyTimeoutMs }),
       ...(options.retries === undefined ? {} : { retries: options.retries }),
     });
   const progress = options.progress ?? (() => undefined);
@@ -292,18 +376,11 @@ export async function captureReleaseProofs(options: CaptureReleaseProofOptions =
     const keys = batchEntries.map((entry) => entry.substrateStorageKey);
     let stored = await loadExistingBatch(normalizedPath, keys);
     if (!stored) {
-      const envelope = await rawCall(transport, 'state_getReadProof', [
-        keys,
-        MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
-      ]);
-      await writeFile(
+      const proof = await captureProof(
+        transport,
+        batchEntries,
         join(dataDirectory, 'raw', 'balances', `${proofId}.json`),
-        json(envelope),
-        'utf8',
-      );
-      const parsed = proofNodes(
-        resultFromEnvelope(envelope, 'state_getReadProof'),
-        'state_getReadProof',
+        progress,
       );
       await writeFile(
         normalizedPath,
@@ -313,11 +390,11 @@ export async function captureReleaseProofs(options: CaptureReleaseProofOptions =
           blockHash: MOONBEAM_FINAL_SUBSTRATE_BLOCK_HASH,
           stateRoot: MOONBEAM_FINAL_SUBSTRATE_STATE_ROOT,
           keys: batchEntries,
-          proofNodes: parsed.nodes,
+          proofNodes: proof.proofNodes,
         }),
         'utf8',
       );
-      stored = { proofNodes: parsed.nodes };
+      stored = { proofNodes: proof.proofNodes };
     } else if (!(await exists(join(dataDirectory, 'raw', 'balances', `${proofId}.json`)))) {
       throw new Error(`normalized proof ${proofId} exists without its raw RPC response`);
     }
