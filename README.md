@@ -90,7 +90,8 @@ The canonical identity excludes RPC URL, timestamps, host information, and other
 
 The snapshot reports which H160 accounts held xcDOT at a particular Moonbeam state root. It does not decide who should receive native DOT, how a contract-held balance should be distributed, or which governance mechanism should authorize recovery. Those are separate future policy and execution layers.
 
-`eth_getCode == 0x` is recorded as `no_code`, not as proof that an address is an EOA. Ownership would require a later proof of control.
+The terminal frontend does not classify addresses or infer ownership. Address-code
+analysis remains optional research tooling and is not part of the release pipeline.
 
 ## Current status
 

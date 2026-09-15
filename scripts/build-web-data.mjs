@@ -30,47 +30,16 @@ function readHolders() {
     .map((line) => JSON.parse(line));
 }
 
-function percentage(part, whole) {
-  if (whole === 0n) return '0.0000000';
-  const scaled = ((part * 1000000000n) / whole).toString().padStart(8, '0');
-  return `${scaled.slice(0, -7) || '0'}.${scaled.slice(-7)}`;
-}
-
-function classify(value) {
-  if (
-    value === 'code-present' ||
-    value === 'no-code' ||
-    value === 'system-precompile' ||
-    value === 'unknown'
-  )
-    return value;
-  return 'unknown';
-}
-
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function buildStatistics(holders, classifications, snapshot, existing) {
+function buildStatistics(holders, snapshot) {
   const sorted = [...holders].sort((a, b) => {
     const balanceOrder = BigInt(b.balancePlanck) - BigInt(a.balancePlanck);
     return balanceOrder === 0n ? a.address.localeCompare(b.address) : balanceOrder > 0n ? 1 : -1;
   });
   const knownBalance = holders.reduce((sum, holder) => sum + BigInt(holder.balancePlanck), 0n);
-  const counts = { 'code-present': 0, 'no-code': 0, 'system-precompile': 0, unknown: 0 };
-  const balances = { 'code-present': 0n, 'no-code': 0n, 'system-precompile': 0n, unknown: 0n };
-  for (const holder of holders) {
-    const type = classify(classifications[holder.address]?.classification);
-    counts[type] += 1;
-    balances[type] += BigInt(holder.balancePlanck);
-  }
-
-  const ascending = [...holders].sort((a, b) => {
-    const difference = BigInt(a.balancePlanck) - BigInt(b.balancePlanck);
-    return difference === 0n ? a.address.localeCompare(b.address) : difference > 0n ? 1 : -1;
-  });
-  const percentile = (fraction) =>
-    BigInt(ascending[Math.floor((ascending.length - 1) * fraction)].balancePlanck);
   const bucketDefinitions = [
     ['< 0.1', 0n, 1000000000n],
     ['0.1 – 1', 1000000000n, 10000000000n],
@@ -106,36 +75,10 @@ function buildStatistics(holders, classifications, snapshot, existing) {
   };
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     snapshot: recovery,
     terminalState: snapshot.terminalState,
-    classification: Object.fromEntries(
-      ['code-present', 'no-code', 'system-precompile', 'unknown'].map((type) => [
-        type === 'code-present'
-          ? 'codePresent'
-          : type === 'no-code'
-            ? 'noCode'
-            : type === 'system-precompile'
-              ? 'systemPrecompile'
-              : 'unknown',
-        {
-          count: counts[type],
-          balancePlanck: balances[type].toString(),
-          addressPercentage: percentage(BigInt(counts[type]), BigInt(holders.length)),
-          knownBalancePercentage: percentage(balances[type], knownBalance),
-          totalSupplyPercentage: percentage(balances[type], totalSupply),
-        },
-      ]),
-    ),
     distribution: {
-      meanPlanck: (knownBalance / BigInt(holders.length)).toString(),
-      medianPlanck: percentile(0.5).toString(),
-      p25Planck: percentile(0.25).toString(),
-      p75Planck: percentile(0.75).toString(),
-      p90Planck: percentile(0.9).toString(),
-      p95Planck: percentile(0.95).toString(),
-      p99Planck: percentile(0.99).toString(),
-      largestPlanck: sorted[0].balancePlanck,
       buckets,
     },
     concentration: {
@@ -144,22 +87,14 @@ function buildStatistics(holders, classifications, snapshot, existing) {
       top1000Planck: topBalance(1000).toString(),
       remainingPlanck: (knownBalance - topBalance(1000)).toString(),
     },
-    classificationStatus: existing.classificationStatus,
-    legacy: existing,
   };
 }
 
 function main() {
   const snapshot = readJson(join(sourceData, 'snapshot.json'));
-  const existingStatistics = readJson(join(sourceData, 'statistics.json'));
   const evidenceIndex = readJson(join(sourceData, 'evidence-index.json'));
-  const classificationDocument = readJson(join(sourceData, 'classification.json'));
-  const classifications = classificationDocument.accounts ?? {};
   const holders = readHolders();
-  const statistics = buildStatistics(holders, classifications, snapshot, existingStatistics);
-
-  if (classificationDocument.status !== 'PASS')
-    throw new Error(`WEB_BUILD_FAIL: classification status ${classificationDocument.status}`);
+  const statistics = buildStatistics(holders, snapshot);
 
   const sum = holders.reduce((total, holder) => total + BigInt(holder.balancePlanck), 0n);
   const totalSupply = BigInt(
@@ -172,12 +107,6 @@ function main() {
     throw new Error(`WEB_BUILD_FAIL: total supply ${totalSupply}`);
   if (totalSupply - sum !== EXPECTED.unattributed)
     throw new Error('WEB_BUILD_FAIL: unattributed balance');
-
-  const unknownCount = holders.filter(
-    (holder) => classify(classifications[holder.address]?.classification) === 'unknown',
-  ).length;
-  if (unknownCount !== 0)
-    throw new Error(`WEB_BUILD_FAIL: unknown classifications ${unknownCount}`);
 
   rmSync(outputData, { recursive: true, force: true });
   mkdirSync(outputData, { recursive: true });
@@ -207,10 +136,8 @@ function main() {
       ) {
         throw new Error(`WEB_BUILD_FAIL: storage mismatch for ${holder.address}`);
       }
-      const classification = classify(classifications[holder.address]?.classification);
       holderIndex[holder.address] = {
         balancePlanck: holder.balancePlanck,
-        classification,
         proofId: evidence.proofId,
         keyIndex: evidence.keyIndex,
       };
@@ -218,7 +145,6 @@ function main() {
         rank: index + 1,
         address: holder.address,
         balancePlanck: holder.balancePlanck,
-        classification,
       };
     });
 
@@ -250,11 +176,6 @@ function main() {
   console.log(`TOTAL_SUPPLY_PLANCK=${totalSupply}`);
   console.log(`UNATTRIBUTED_PLANCK=${totalSupply - sum}`);
   console.log(`PROOF_INDEX=PASS`);
-  console.log(`CLASSIFICATION_STATUS=${classificationDocument.status}`);
-  console.log(`CONTRACT_COUNT=${statistics.classification.codePresent.count}`);
-  console.log(`EOA_COUNT=${statistics.classification.noCode.count}`);
-  console.log(`SYSTEM_COUNT=${statistics.classification.systemPrecompile.count}`);
-  console.log(`UNKNOWN_COUNT=${unknownCount}`);
 }
 
 main();
