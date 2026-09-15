@@ -12,3 +12,9 @@ and validates file hashes and `evidenceDigest`.
 The verifier is intentionally independent of the RPC capture process. A changed holder balance,
 raw storage byte, proof node, root, header, metadata, or digest must make the command exit
 non-zero.
+
+The frozen terminal-state release uses the same pinned state root through
+`NO_NETWORK=1 node dist/cli/index.js verify-release --data data`. It verifies the
+totalSupply proof and every known-positive balance proof, while preserving the
+explicit unattributed shortfall; passing proof verification does not turn an
+incomplete address universe into a canonical holder list.

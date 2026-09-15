@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Query the recovered xcDOT terminal state snapshot from Moonbeam block 16,796,696."
+    />
+    <meta property="og:title" content="xcDOT Terminal Snapshot" />
+    <meta
+      property="og:description"
+      content="A static reader for the frozen xcDOT terminal state evidence."
+    />
+    <title>xcDOT Terminal Snapshot</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app" class="shell" aria-live="polite">
+      <p class="loading">Loading frozen snapshot…</p>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

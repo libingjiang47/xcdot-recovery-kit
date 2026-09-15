@@ -1,6 +1,6 @@
 {
   "name": "xcdot-recovery-kit",
-  "version": "0.2.0",
+  "version": "0.26.0",
   "description": "Independent, reproducible xcDOT state extraction and verification tooling.",
   "license": "Apache-2.0",
   "type": "module",
@@ -19,11 +19,17 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node dist/cli/index.js"
+    "start": "node dist/cli/index.js",
+    "build:snapshot": "node dist/cli/index.js build-release",
+    "capture:proofs": "node dist/cli/index.js capture-release-proofs --data data --resume",
+    "verify:release": "NO_NETWORK=1 node dist/cli/index.js verify-release --data data",
+    "web:build": "node scripts/build-web-data.mjs"
   },
   "dependencies": {
     "@polkadot/api": "16.4.4",
     "@polkadot/rpc-provider": "16.4.4",
+    "@polkadot/util": "13.5.5",
+    "@polkadot/util-crypto": "13.5.5",
     "commander": "14.0.0",
     "viem": "2.31.7",
     "zod": "3.25.76"

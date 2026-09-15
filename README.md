@@ -8,13 +8,15 @@ It does not determine recovery eligibility, control funds, or represent Moonbeam
 
 ## What it does
 
-v0.2 retains the v0.1 snapshot path and adds an evidence-freeze path. `capture-evidence` records the pinned SCALE header, raw storage values, runtime metadata, deterministic trie proof batches, decoded legacy Assets state, and independent hashes. `verify-evidence` runs the Rust `sp-trie` verifier entirely offline.
+v0.26 retains the v0.2/v0.25 evidence paths and adds final-state reconstruction from the pinned EVM contract state. Subscan contributes only the normalized candidate H160 set; `reconstruct-final-state` queries `balanceOf` and `totalSupply` at one explicit EVM block, persists an append-only checkpoint, and reports exact supply completeness without using Subscan balances as an invariant. The metadata-derived `pallet_evm::AccountStorages` backend refuses to guess Solidity slots and can acquire read proofs once a provenance-bearing storage-layout artifact is supplied. The Rank 565 diagnostic remains a separate, non-canonical investigation path.
+
+The frozen terminal-state release under `data/` packages the currently known 11,785 non-zero addresses and their pinned AccountStorages balances. It is intentionally non-canonical while `9927370122` planck (`0.9927370122 xcDOT`) remains unattributed. Read proofs, when captured, are verified against the pinned Substrate state root by the offline Rust verifier; an absent address is never treated as a proven zero.
 
 The authoritative output is a statement of chain state. Contract-held balances remain in the holder set; no beneficiary or recovery entitlement is inferred.
 
 ## What it does not do
 
-This release does not move funds, generate claims, determine beneficiaries, reconstruct DeFi positions, connect wallets, deploy contracts, or use explorer holder pages as inputs.
+This release does not move funds, generate claims, determine beneficiaries, reconstruct DeFi positions, connect wallets, deploy contracts, or treat Subscan balances as authoritative final state.
 
 ## Install and test
 
@@ -42,6 +44,27 @@ xcdot-recovery verify --rpc <moonbeam-substrate-rpc> --snapshot snapshots/<numbe
 xcdot-recovery evm-check --rpc <moonbeam-evm-rpc> --snapshot snapshots/<number>-<short-hash>
 xcdot-recovery capture-evidence --rpc <moonbeam-substrate-rpc> --block-hash <hash> --out evidence
 xcdot-recovery verify-evidence --bundle evidence/<number>-<short-hash>
+xcdot-recovery import-subscan --input snapshots/subscan --expected-files 73
+xcdot-recovery verify-subscan-final-state --dataset snapshots/subscan/derived --evm-rpc <moonbeam-evm-rpc> --block-number <number> --substrate-block-hash <hash>
+xcdot-recovery diagnose-rank565 --dataset snapshots/subscan --evm-rpc <moonbeam-evm-rpc> --block-number 16796696 --from-block <justified-start>
+xcdot-recovery reconstruct-final-state --dataset snapshots/subscan --evm-rpc <moonbeam-evm-rpc> --block-number 16796696 --expected-total-supply 2334516727484230 --resume
+xcdot-recovery probe-subscan-final-state --dataset snapshots/final-state/moonbeam-16796696 --out diagnostics/subscan-final-state-probe
+xcdot-recovery probe-subscan-final-state --access direct-subscan --dataset snapshots/final-state/moonbeam-16796696 --out diagnostics/subscan-final-state-probe-direct
+xcdot-recovery inspect-evm-storage-layout --substrate-rpc <moonbeam-substrate-rpc> --block-hash <hash> --layout <verified-layout.json>
+xcdot-recovery extract-final-state-storage --substrate-rpc <moonbeam-substrate-rpc> --block-hash <hash> --dataset snapshots/subscan --layout <verified-layout.json>
+xcdot-recovery probe-substrate-archive --rpc <moonbeam-substrate-rpc> --block-hash 0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f
+xcdot-recovery probe-substrate-archive-matrix --block-hash 0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f --provider onfinality=<rpc> --provider foundation=<rpc>
+xcdot-recovery probe-nownodes-final-state
+xcdot-recovery probe-dwellir-final-state
+xcdot-recovery probe-dwellir-final-state-direct
+xcdot-recovery recover-dwellir-final-state --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --expected-total-supply 2334516727484230 --resume
+xcdot-recovery recover-dwellir-final-state --dataset snapshots/subscan --candidate-extension snapshots/routescan/xcdot-holders.ndjson --expected-total-supply 2334516727484230 --resume
+xcdot-recovery fetch-sqd-xcdot-candidates --from-block 0 --to-block 16796696 --resume
+xcdot-recovery recover-sqd-backward --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --window-blocks 10000 --max-unproductive-windows 20 --resume
+xcdot-recovery recover-dwellir-gap --dataset snapshots/subscan --moonscan-csv snapshots/moonscan/0xffffffff1fcacbd218edc0eba20fc2308c778080.csv --prior-work diagnostics/sqd-backward-recovery --gap-start 16669569 --gap-end 16796696 --log-window-blocks 1000 --log-endpoint https://moonbeam.api.onfinality.io/public --connect-timeout-ms 120000 --timeout-ms 300000 --storage-concurrency 2 --resume
+node dist/cli/index.js build-release --source diagnostics/candidate-extension/candidate-cd2e0f20e5d49992/final-balances.ndjson --out data
+node dist/cli/index.js capture-release-proofs --data data --timeout-ms 300000 --connect-timeout-ms 120000 --resume
+NO_NETWORK=1 node dist/cli/index.js verify-release --data data
 ```
 
 `--rpc` may be omitted only when `MOONBEAM_RPC` is set. No third-party provider is selected automatically.
@@ -62,7 +85,13 @@ The snapshot reports which H160 accounts held xcDOT at a particular Moonbeam sta
 
 ## Current status
 
-The observed finalized height `16,796,696` remains an unconfirmed candidate. On the current Moonbeam runtime, the old `Assets` storage backend is absent and xcDOT is EVM-backed, so `capture-evidence` fails closed rather than publishing an incomplete holder set. This repository does not declare that block canonical.
+The frozen terminal state is Moonbeam block `16,796,696` with state root
+`0xe5c38c080bf19f4b6308f127bdcc34e3d9e016fd895b50ff200ca2714f5327eb`.
+The known non-zero balance sum is `2334506800114108` planck against total
+supply `2334516727484230`, so `0.9927370122 xcDOT` remains unattributed. The
+dataset is not canonical and does not claim to be a complete holder list.
+
+See [terminal-state recovery snapshot](docs/canonical-recovery-snapshot.md), [limitations](docs/limitations.md), [Subscan import](docs/subscan-import.md), [real import audit](docs/subscan-real-import.md), [final-state verification](docs/subscan-final-state-verification.md), [v0.26 final-state reconstruction](docs/final-state-reconstruction.md), [Moonscan candidate reconciliation](docs/moonscan-final-state-reconciliation.md), [migration-era holder recovery](docs/migration-era-holder-recovery.md), [generic candidate extensions](docs/candidate-extension.md), [SQD Transfer candidate discovery](docs/sqd-transfer-candidate-discovery.md), [SQD backward recovery](docs/sqd-backward-recovery.md), [Dwellir Frontier gap recovery](docs/dwellir-frontier-gap-recovery.md), [Moonscan final-state result](docs/moonscan-final-state-result.md), [Subscan/PubFi final-state probe](docs/subscan-final-state-probe.md), [historical Substrate archive probe](docs/substrate-archive-probe.md), [NOWNodes final-state proof probe](docs/nownodes-final-state-probe.md), [Dwellir final-state proof probe](docs/dwellir-final-state-probe.md), [Dwellir direct final-state probe](docs/dwellir-final-state-direct-probe.md), [Rank 565 diagnostic](docs/rank565-diagnostic.md), and the [Rank 565 arithmetic erratum](docs/rank565-arithmetic-erratum.md).
 
 ## License
 

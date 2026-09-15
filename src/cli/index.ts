@@ -11,13 +11,33 @@ import { evmCheckCommand } from './evm-check.js';
 import { captureEvidenceCommand } from './capture-evidence.js';
 import { verifyEvidenceCommand } from './verify-evidence.js';
 import { anchorRelayCommand } from './anchor-relay.js';
+import { importSubscanCommand } from './import-subscan.js';
+import { verifySubscanFinalStateCommand } from './verify-subscan-final-state.js';
+import { diagnoseRank565Command } from './diagnose-rank565.js';
+import { reconstructFinalStateCommand } from './reconstruct-final-state.js';
+import { inspectEvmStorageLayoutCommand } from './inspect-evm-storage-layout.js';
+import { extractFinalStateStorageCommand } from './extract-final-state-storage.js';
+import { probeSubstrateArchiveCommand } from './probe-substrate-archive.js';
+import { probeSubstrateArchiveMatrixCommand } from './probe-substrate-archive-matrix.js';
+import { probeSubscanFinalStateCommand } from './probe-subscan-final-state.js';
+import { probeNownodesFinalStateCommand } from './probe-nownodes-final-state.js';
+import { probeDwellirFinalStateCommand } from './probe-dwellir-final-state.js';
+import { probeDwellirFinalStateDirectCommand } from './probe-dwellir-final-state-direct.js';
+import { recoverDwellirFinalStateCommand } from './recover-dwellir-final-state.js';
+import { fetchSqdXcdotCandidatesCommand } from './fetch-sqd-xcdot-candidates.js';
+import { recoverSqdBackwardCommand } from './recover-sqd-backward.js';
+import { recoverDwellirGapCommand } from './recover-dwellir-gap.js';
+import { buildReleaseCommand } from './build-release.js';
+import { captureReleaseProofsCommand } from './capture-release-proofs.js';
+import { verifyReleaseCommand } from './verify-release.js';
+import { classifyReleaseCommand } from './classify-release.js';
 
 export function createProgram(): Command {
   const program = new Command();
   program
     .name('xcdot-recovery')
     .description('Deterministic xcDOT state extraction and verification toolkit')
-    .version('0.2.0')
+    .version('0.26.0')
     .showSuggestionAfterError();
   program.addCommand(probeCommand());
   program.addCommand(inspectCommand());
@@ -28,6 +48,26 @@ export function createProgram(): Command {
   program.addCommand(captureEvidenceCommand());
   program.addCommand(verifyEvidenceCommand());
   program.addCommand(anchorRelayCommand());
+  program.addCommand(importSubscanCommand());
+  program.addCommand(verifySubscanFinalStateCommand());
+  program.addCommand(diagnoseRank565Command());
+  program.addCommand(reconstructFinalStateCommand());
+  program.addCommand(inspectEvmStorageLayoutCommand());
+  program.addCommand(extractFinalStateStorageCommand());
+  program.addCommand(probeSubstrateArchiveCommand());
+  program.addCommand(probeSubstrateArchiveMatrixCommand());
+  program.addCommand(probeSubscanFinalStateCommand());
+  program.addCommand(probeNownodesFinalStateCommand());
+  program.addCommand(probeDwellirFinalStateCommand());
+  program.addCommand(probeDwellirFinalStateDirectCommand());
+  program.addCommand(recoverDwellirFinalStateCommand());
+  program.addCommand(fetchSqdXcdotCandidatesCommand());
+  program.addCommand(recoverSqdBackwardCommand());
+  program.addCommand(recoverDwellirGapCommand());
+  program.addCommand(buildReleaseCommand());
+  program.addCommand(captureReleaseProofsCommand());
+  program.addCommand(verifyReleaseCommand());
+  program.addCommand(classifyReleaseCommand());
   return program;
 }
 

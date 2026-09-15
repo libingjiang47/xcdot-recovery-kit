@@ -1,0 +1,6 @@
+{
+  "status": "NOT_RUN",
+  "method": "state_getStorage",
+  "key": "0x3a636f6465",
+  "blockHash": "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f"
+}

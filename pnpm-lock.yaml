@@ -13,6 +13,12 @@ importers:
       '@polkadot/rpc-provider':
         specifier: 16.4.4
         version: 16.4.4(supports-color@7.1.0)
+      '@polkadot/util':
+        specifier: 13.5.5
+        version: 13.5.5
+      '@polkadot/util-crypto':
+        specifier: 13.5.5
+        version: 13.5.5(@polkadot/util@13.5.5)
       commander:
         specifier: 14.0.0
         version: 14.0.0

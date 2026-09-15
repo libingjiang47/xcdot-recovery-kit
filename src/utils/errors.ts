@@ -133,6 +133,238 @@ export class EvidenceVerificationError extends XcDotError {
   }
 }
 
+export class SubscanFileCountMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_FILE_COUNT_MISMATCH', message, details);
+    this.name = 'SubscanFileCountMismatchError';
+  }
+}
+
+export class SubscanSchemaUnsupportedError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_SCHEMA_UNSUPPORTED', message, details);
+    this.name = 'SubscanSchemaUnsupportedError';
+  }
+}
+
+export class SubscanSchemaMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_SCHEMA_MISMATCH', message, details);
+    this.name = 'SubscanSchemaMismatchError';
+  }
+}
+
+export class SubscanInvalidAddressError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_INVALID_ADDRESS', message, details);
+    this.name = 'SubscanInvalidAddressError';
+  }
+}
+
+export class SubscanInvalidBalanceError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_INVALID_BALANCE', message, details);
+    this.name = 'SubscanInvalidBalanceError';
+  }
+}
+
+export class SubscanBalancePrecisionError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_BALANCE_PRECISION', message, details);
+    this.name = 'SubscanBalancePrecisionError';
+  }
+}
+
+export class SubscanDuplicateFileError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_DUPLICATE_FILE', message, details);
+    this.name = 'SubscanDuplicateFileError';
+  }
+}
+
+export class SubscanSemanticDuplicatePageError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_SEMANTIC_DUPLICATE_PAGE', message, details);
+    this.name = 'SubscanSemanticDuplicatePageError';
+  }
+}
+
+export class SubscanDuplicateBalanceConflictError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_DUPLICATE_BALANCE_CONFLICT', message, details);
+    this.name = 'SubscanDuplicateBalanceConflictError';
+  }
+}
+
+export class SubscanImportIntegrityError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_IMPORT_INTEGRITY', message, details);
+    this.name = 'SubscanImportIntegrityError';
+  }
+}
+
+export class SubscanFinalStateVerificationError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_FINAL_STATE_VERIFICATION', message, details);
+    this.name = 'SubscanFinalStateVerificationError';
+  }
+}
+
+export class SubscanFinalStateProbeError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_FINAL_STATE_PROBE_FAILED', message, details);
+    this.name = 'SubscanFinalStateProbeError';
+  }
+}
+
+export class CandidateExtensionImportError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('CANDIDATE_EXTENSION_IMPORT_ERROR', message, details);
+    this.name = 'CandidateExtensionImportError';
+  }
+}
+
+export class FinalStateResumeContextMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_RESUME_CONTEXT_MISMATCH', message, details);
+    this.name = 'FinalStateResumeContextMismatchError';
+  }
+}
+
+export class FinalStateBalanceConflictError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_BALANCE_CONFLICT', message, details);
+    this.name = 'FinalStateBalanceConflictError';
+  }
+}
+
+export class FinalStateBalanceCacheConflictError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_BALANCE_CACHE_CONFLICT', message, details);
+    this.name = 'FinalStateBalanceCacheConflictError';
+  }
+}
+
+export class FinalStateDiscoveryPartialError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSCAN_DISCOVERY_PARTIAL', message, details);
+    this.name = 'FinalStateDiscoveryPartialError';
+  }
+}
+
+export class FinalStateSupplyChangedError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_SUPPLY_CHANGED', message, details);
+    this.name = 'FinalStateSupplyChangedError';
+  }
+}
+
+export class FinalStateIdentityMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_IDENTITY_MISMATCH', message, details);
+    this.name = 'FinalStateIdentityMismatchError';
+  }
+}
+
+export class FinalStateOutputExistsError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_OUTPUT_EXISTS', message, details);
+    this.name = 'FinalStateOutputExistsError';
+  }
+}
+
+export class FinalStateStorageLayoutError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('EVM_STORAGE_LAYOUT_MISMATCH', message, details);
+    this.name = 'FinalStateStorageLayoutError';
+  }
+}
+
+export class FinalStateStorageBackendUnsupportedError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('EVM_STORAGE_BACKEND_UNSUPPORTED', message, details);
+    this.name = 'FinalStateStorageBackendUnsupportedError';
+  }
+}
+
+export class FinalStateSupplyShortfallError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_SUPPLY_SHORTFALL', message, details);
+    this.name = 'FinalStateSupplyShortfallError';
+  }
+}
+
+export class FinalStateSupplyOverflowError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('FINAL_STATE_SUPPLY_OVERFLOW', message, details);
+    this.name = 'FinalStateSupplyOverflowError';
+  }
+}
+
+export class SubstrateArchiveProbeInputError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('SUBSTRATE_ARCHIVE_PROBE_INPUT', message, details);
+    this.name = 'SubstrateArchiveProbeInputError';
+  }
+}
+
+export class Rank565DiagnosticError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('RANK565_DIAGNOSTIC_FAILED', message, details);
+    this.name = 'Rank565DiagnosticError';
+  }
+}
+
+export class Rank565ResumeContextMismatchError extends XcDotError {
+  constructor(message: string, details: Record<string, string | number | boolean> = {}) {
+    super('RANK565_RESUME_CONTEXT_MISMATCH', message, details);
+    this.name = 'Rank565ResumeContextMismatchError';
+  }
+}
+
+export type DwellirFrontierGapErrorCode =
+  | 'DWELLIR_FRONTIER_CHAIN_MISMATCH'
+  | 'DWELLIR_FRONTIER_INDEX_TOO_SHALLOW'
+  | 'DWELLIR_FRONTIER_FINAL_BLOCK_MISMATCH'
+  | 'DWELLIR_GAP_REMOVED_LOG'
+  | 'DWELLIR_GAP_LOG_OUT_OF_RANGE'
+  | 'DWELLIR_GAP_INVALID_LOG'
+  | 'PRIOR_RECOVERY_CONTEXT_MISMATCH';
+
+export class DwellirFrontierGapError extends XcDotError {
+  constructor(
+    code: DwellirFrontierGapErrorCode,
+    message: string,
+    details: Record<string, string | number | boolean> = {},
+  ) {
+    super(code, message, details);
+    this.name = 'DwellirFrontierGapError';
+  }
+}
+
+export type SqdCandidateDiscoveryErrorCode =
+  | 'SQD_INPUT_ERROR'
+  | 'SQD_HTTP_ERROR'
+  | 'SQD_RPC_ERROR'
+  | 'SQD_CONTEXT_MISMATCH'
+  | 'SQD_STREAM_INVALID_JSON'
+  | 'SQD_STREAM_INVALID_HEADER'
+  | 'SQD_STREAM_NON_MONOTONIC_BLOCK'
+  | 'SQD_STREAM_INVALID_TRANSFER_LOG'
+  | 'SQD_STREAM_NO_PROGRESS'
+  | 'SQD_STREAM_BLOCK_OUT_OF_RANGE';
+
+export class SqdCandidateDiscoveryError extends XcDotError {
+  constructor(
+    code: SqdCandidateDiscoveryErrorCode,
+    message: string,
+    details: Record<string, string | number | boolean> = {},
+  ) {
+    super(code, message, details);
+    this.name = 'SqdCandidateDiscoveryError';
+  }
+}
+
 export function asXcDotError(error: unknown): XcDotError {
   if (error instanceof XcDotError) return error;
   const message = error instanceof Error ? error.message : String(error);

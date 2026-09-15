@@ -1,0 +1,382 @@
+{
+  "schemaVersion": 1,
+  "dataset": "moonbeam-subscan-xcdot-holders",
+  "source": {
+    "provider": "Moonbeam Subscan",
+    "csvFileCount": 73,
+    "files": [
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x02718cf15546c6876afb6128baf89900f1607c1d-0x19bb690ad12019d51b96dd5dbceda4844c1d2746.csv",
+        "sizeBytes": 6108,
+        "sha256": "1663542b976c35884182c007dfe515794840593e34d867b307e5490ec275bd2f"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x088619746f1b2d5dce6d0d06776aaeac1ddc47be-0xa62916cad5689a70545b76247bebb7f5fb030080.csv",
+        "sizeBytes": 6076,
+        "sha256": "61cef3f52f2ed49bc0757cc162daec73a46e331bddd5fc395dccec79627081ea"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x09218ea2a18835460dea2ba4b460d94f62951875-0x135ea14cc50b934a2804624090619eac1f84431a.csv",
+        "sizeBytes": 6008,
+        "sha256": "362d40eae0ecf5fddf43f3a1029848ede0374b1cc433e8bbd4ebc369575f20ef"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x0e24d281364bbf1ee6d98d93d744ded873117efe-0xcc43cadfe71ec056766a462e89c29652775c6b89.csv",
+        "sizeBytes": 6109,
+        "sha256": "d1689c4996625f668d3ff3e245f4f59493019acc16188dd972eff2e65a91ebd8"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x0f3cbab80c8c1b6fa5c7aa7e0d331bfa27af55d3-0x75448de3cad80522a78761c75957e021121cee02.csv",
+        "sizeBytes": 6060,
+        "sha256": "7629ce515bcb036d1e162b31404f5cd82c53d760ef801898930e14a5905bcc07"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x1cfe40107a79a08428354ef897d5e0ce9639e5bb-0xc06c32a0016c9b8b58ab6e914c9cd358e7ef955f.csv",
+        "sizeBytes": 6103,
+        "sha256": "13549db3e2788e06d61b8e09a042c421ea7568981a39a5ddf7c2e9095cc1c466"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x23d0e18c8054fe630a37128a9e3be030d3e1c71f-0x5eb9febee296925d3b1f7dce513a6d622393bd89.csv",
+        "sizeBytes": 6110,
+        "sha256": "f91107ad041076a65fbe577b24f36b62f0177c257efdb6e8d89745f7927305eb"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x28f1558d0cf03cd6fb852c0ca2bfcc43cda02464-0x1a2c55abb834ecd2ecc26f962d89393a0665021f.csv",
+        "sizeBytes": 5984,
+        "sha256": "d4775ad36d2a0064c954268e4387015125bcee7061bab7dc8af0ccdcb48634de"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x2a56663ad4fa3ba4c10f088808cf8786eb4db04d-0x069f56e0cf58eee5231e5654e376750a986d5fae.csv",
+        "sizeBytes": 6099,
+        "sha256": "0e4e76a3501a82b59240cab95d1f899bc575d00a2ed4d657210b617576f79a2a"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x315635d6ffe7413258fbdb7e4b03153777e6bbba-0xc4b7c9634dbf21330347aa0b9e14787e28b6e69b.csv",
+        "sizeBytes": 6103,
+        "sha256": "c0fc454513cb950b6e3458583e84a8aa5565e197a7d1a5154babc869cbb4fee1"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x33408adecbf7214fe358c73d27e59c48e267bfb5-0x22f16d9495e3ea47f680a706e56b64b71af19491.csv",
+        "sizeBytes": 6109,
+        "sha256": "42944ec3e8878e5a173047eb6120b6debd81c145aa696b3272800ed9c316e601"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x3935765db13f26d8c73cefff3bd5b0e8ea2c6c6d-0x54f84c7d7da852d56ef342b9b2b109c636e9e96a.csv",
+        "sizeBytes": 6107,
+        "sha256": "70067190fd0af09ab9d2cfbccb96e9c2c430981cf971ad1466acefb1781c2a84"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x3b2c8e946e1e91efc44e63488c6d3d1334209175-0xca4caa351703ffc5d172ef39d8dc05d0508420d3.csv",
+        "sizeBytes": 6108,
+        "sha256": "e40a27b1f7e990c477ef6263e1985b40e67102e929bb8411b2bbf0aac618d3cc"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x40aae42a61facad7fbdf3641606502679896f43a-0x46e3420d02d628d3781fa16149e741bcb97da055.csv",
+        "sizeBytes": 6095,
+        "sha256": "fed7f4bd5257f828b72bcb23376fed84119c3066e02312490677073b89ca7809"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x43441fc7b12bdef70dbb55b8537e4118148bf167-0x4e884c854ab809f68fe1c3552bb8add2801836eb.csv",
+        "sizeBytes": 5920,
+        "sha256": "d65ab99adcc9560a335d93cbe9999e4a024e84fdf5576f6938027b94b5d9e1f4"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x48f34bc0aa610b1b62e2d4862ef8def9aa1bb13f-0xae20011df1188b008fd57eb04bfd2655ba4bc6ff.csv",
+        "sizeBytes": 6105,
+        "sha256": "4ad5f937592792f66043769dd0e17d75e7fe45d0bf5fc8f6f22d7e3791a5392a"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x4b2131165de0c322ae0c73e20043555f9d786edd-0xdec4079d93363fcb5e2be7f8da9a9b817c75fa00.csv",
+        "sizeBytes": 6055,
+        "sha256": "a8b39a0d9334c95cdb350d06e9f0b225016fa047adbcd320768b6bb6fc9c2bed"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x4bad5ce39cc6d4796361994836c73ee11f846009-0x725cfb416801c5cb73d3b00a47810600158bd05a.csv",
+        "sizeBytes": 6116,
+        "sha256": "b346a771e7d63b246750af537f309f50e80ce43a62f45ad78b7e507f62a5a004"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x5159d59a9f90c77cb9b375529c2f764d40ccf4d1-0xc277b5ee1c06cab51c4e344248ac2c3375c16b4a.csv",
+        "sizeBytes": 6108,
+        "sha256": "148db4dc7ad9e1c133c8709dd5fc5c86bd1acb7b4ec19c2b8b6c5ac6765fc70a"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x5772af8f7c25162f9bd86502e44dd1ac12b38dda-0x5032989f47b8ca26736bfc79fbbc8f0ca1cf6135.csv",
+        "sizeBytes": 5836,
+        "sha256": "aee493014e6fdd206a77eb17b06107a7b1f070346b8946b4b111389b2ef90bcb"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x5b0ba50d7bd321f93c01583295e9111ddef7345a-0xaa27b52c5ad1ca47894f60b7e8eb336ddd50a517.csv",
+        "sizeBytes": 6112,
+        "sha256": "1975655e4000ecb11b9c13b435ca5cd832c03027e30e16df05b07f4a1602d93e"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x5c2670a95f13a9604a1b3d08ef695af3d5fc3e62-0xa6e177bca530533d0c200327e1515d0fffbc1697.csv",
+        "sizeBytes": 6078,
+        "sha256": "2d231fd0bc16585b0258f89c2d8a586480fac4b67639178fea472cd7b4b416f0"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x5fb261d40b889f0e42a7bd8690d0f4f53d3dc74a-0xd56af1033e0d8784fb71ff9848d6a3422b847de4.csv",
+        "sizeBytes": 6042,
+        "sha256": "a77c796abc9167bac715676708eae32330709d3dd410d1de4a7653a7e1387277"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x60ccb146f4913f0d3ce2a04eef566f4ca2bfaae5-0xcc256a1cae601c6d0c87577cc530d7727ae69273.csv",
+        "sizeBytes": 6109,
+        "sha256": "941eb37d952091b58c3dda59467784197352b6b17c97a8ca823b304c0d7c5386"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x61b720a3571ab0e760d2b84f6f4dc730b50bbdd5-0x163a9c1501cbbc6f9f3c61a168d2e72c96164a81.csv",
+        "sizeBytes": 6000,
+        "sha256": "e7963d7eea057444f7cdd3d62791ccbf7af8c9ba774a01046cd6295c1975bfbf"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x6b5f9c1bee73a39692e51a02809ea51819066b35-0x67215777d28cb6acccbbaeab4c4e3d45f7423de2.csv",
+        "sizeBytes": 6079,
+        "sha256": "715f183d3c4a5c47895ebd0f81084fbdb4676b731332ae40e12139e264871471"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x6c02667698f7d4b1221e55529fc5eef7ace8bb2b-0x3994ac4537196fb3779ba3e32760b798ba727e19.csv",
+        "sizeBytes": 6107,
+        "sha256": "3be58c87a96aa389736f0a831a277c5b8ddde5f4537213a03d2a1d1a2dd2c721"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x6dd8713f48225ac8ff9397fa961723c46f324134-0xca413c13eacacd2f4314e5d8b84aab87929d26f8.csv",
+        "sizeBytes": 6145,
+        "sha256": "9fc3eb591d99e0967cbdbbb45142ac1b16c118285822d7f33d9ab3c713773491"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x6f583b491dc1df4db021dcf1357e1518b329771a-0xf4ca95fe5f00aa6078b340ddd073b631321f1f43.csv",
+        "sizeBytes": 6070,
+        "sha256": "9d832078078556c5b8e5bd0785d5f624f8e969438f7409db405b5d5021d2317c"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x748daa9044cf43aa1279fe8111412012f0baf446-0x8506cff145f5666591b075e7b17f37d8cabaa2c4.csv",
+        "sizeBytes": 6081,
+        "sha256": "97ea5ea64bde0c09a5098543c5730a27d2aff1ddf4c512546dcfce90c92ec6a5"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x78b1b26b405468053e03f872ad60c4a3bf5d5dd4-0x6c107b40484d04d8e31884b019dd7df64dd2a670.csv",
+        "sizeBytes": 6107,
+        "sha256": "809573c37eb9e24331ad34defc406bb541ca50caf056c7083530e70e7330d6b0"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x7908804c3e237b2ae469b7119ef6537292791fe4-0x30f0d1094f4b5605f30d1343f961a8ab24a07ad4.csv",
+        "sizeBytes": 5922,
+        "sha256": "9fd95d9cf43a03e4b3c94a2b296ed9ef074276321cc61ed73049fa1659b68a0a"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x7d233827ec2949f79894ff9b37e35ff51216d080-0x7f55f1aa01dc71ad252736e9cb2e0cd3ff7b6a56.csv",
+        "sizeBytes": 6120,
+        "sha256": "7c341706b831f0b11ec12f33e828b95f01ac4c45c333c13bd6b00e50774fee28"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x7e1084a270d75e266d1f2f8b3b9924215b4620aa-0x55aaf6665fa2caa49d64fd255aa6d00e12bc1399.csv",
+        "sizeBytes": 6107,
+        "sha256": "74788419170f86e1715a9871b8f5ae72bebfacd60ba9b007a3114a94c494e714"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x7e347e5238269c41e065e15bc8579d2691b29a8f-0x8ac36bece416076b8c787f5c19980e286a7580f2.csv",
+        "sizeBytes": 6105,
+        "sha256": "bb37b672e5e066fd5633553049328fc94913486f055c16c735b31173adf24ed5"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x826488877726ee592997b05fa8de53bb4898a62e-0x43efa121aa668ea7070d9f0e5e30012ccec44522.csv",
+        "sizeBytes": 6106,
+        "sha256": "ec7501fc635cda2dd3fe8634fcaf3e1e368356b070f892ea787634499083e899"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x890bf4a988c8c846fdeb8a35aed0f53fb139904c-0x1048edbd1a1a9228c3e233ddaff923bb59750288.csv",
+        "sizeBytes": 6056,
+        "sha256": "a942ea8471ec6b22b19570ab93ef94bf123ba4a5835fdea6973beab2c9d67699"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x892d7670490d827d75a66948eedf345c0e93729b-0x9e0499d7efbee3dc3ac363b3ab23d823278342b1.csv",
+        "sizeBytes": 6108,
+        "sha256": "a502e5062c37d98a934dfeff2ab52260057b9e1b60e114047df7ece0d57b4a9d"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x8a147a71947f8659dfcb80d6b198e5dd9acc812b-0x583291f97e84df6f75d5e971961aa9ba16f7a8d2.csv",
+        "sizeBytes": 5967,
+        "sha256": "1da2f429657a8f529e16c32e986408b1fead329422d14ee27e033cba5190eaa1"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x8b1fa056f41818ad6bff25f6bc02305a80dc24a0-0x26bfaaf2070d1f2cf67991aeb20cc244f3e45345.csv",
+        "sizeBytes": 6106,
+        "sha256": "b71a6f75267254633c61f78f2d05207aa82d5429be24bf1695ad8f16e29cbe07"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x8dd070abaf7d1d195aa38ee4cd1cb6a4c67aac05-0x6bec0bca2f15876f675f2c38958ff986551e4db1.csv",
+        "sizeBytes": 6120,
+        "sha256": "35f67340c38017bd3df81e2c7288060e6d5250c76f36716bbf2fec39870fe352"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0x92974bb13baeb56ab1d8d26fd83f982cb83b9e9c-0x6d8a1cedb2583d89f18fa2755ec74fb56b9c8269.csv",
+        "sizeBytes": 5984,
+        "sha256": "b6c23ab6d4bc9fd7d0ff95a59ffe7228b9b7696b33fc81664fcccac4748c8862"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xa17445ef0723f6f400f7ab7bfbe13628954ace9b-0xbf732f38a781e83e6a8479cf66986adb14c0ad4e.csv",
+        "sizeBytes": 6106,
+        "sha256": "a73f2b3d0f4f481ef433cd7dc365d2c7db2ce882b7c80fd16e66ca5fc7a0eb67"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xa4c2832ec1fdd45ce3df68ab3d84b2cf681129b4-0x25442adf37379be90ed1f7fccd9c9417b10aa4dc.csv",
+        "sizeBytes": 6163,
+        "sha256": "f0534b637cefd42c7106096b3a195d8c2d0cae68a231e6810057e92a14428427"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xa64f11e560e980fc747d597cecabb0a3b7b8c95f-0xba737be964c855edb7d2a3ff4c7d1d9d7becf32b.csv",
+        "sizeBytes": 6115,
+        "sha256": "748acd4014e90f219ebf073ddc74dcd511e25b75dbd3377e6bbbaf9e4a08939e"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xa7d46f2ef896d596a5f39b1e1ec649908c38a907-0xb91e27c352c15e4c19c0ce5d68b0be6eac774aab.csv",
+        "sizeBytes": 6110,
+        "sha256": "f7123cdc6088308e826fca1b27b173eb9d49c6648ec60475a21ca6eccde96f0a"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xaa7f5886ad5d93dd98fe5705b30c3a5aaa46bd2d-0x7e884e885ac2ec3241fef4b560f7d1aaedcc0e50.csv",
+        "sizeBytes": 6076,
+        "sha256": "af8a44f78b7bc2a979ebfc704c399dbc66d7ec5a5fd19f2c53bc03d6494cb181"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xac7e1fb507d69aca43733f0b413a7919f4bfc9b8-0x9a35f8efa9b919f696f48952ca8a59557a998d38.csv",
+        "sizeBytes": 6081,
+        "sha256": "c562950a1b0a6b8006243b53d6a75b8afde3719f2d27d75551ef477d83767c32"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xaffb2062fe312075ee2d40f5341cb3e68e60cbe9-0x09746bb964001af90520f4f369666cb409b1707d.csv",
+        "sizeBytes": 6112,
+        "sha256": "2f52e63f6603171ed7eabd7e2a7a7a59dcb0974b34c224629d4a1a367ce9f569"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xb0210de78e28e2633ca200609d9f528c13c26cd9-0xd9d271561c4f5256b14a8da419d8b596045f9c75.csv",
+        "sizeBytes": 6115,
+        "sha256": "36ab606a657dde7149355adb3e176676261fe1eea7f945564a8394dbd3c8d580"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xb31ba06f0e78d9d7da5a0ac376c8707cd6300fe4-0xf9798dd8fd009196c4da4705fe591c0ff9a81ecc.csv",
+        "sizeBytes": 5992,
+        "sha256": "4b4070877e734d4494d56f77dbc2fb8b8a4765547a1853c8889619a26b5b8fd5"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xb472c23da2babd3dd87425c8027845c9d3da2c86-0x8301ec3b8b02e2844e6d9c6ef41670a684cea8a5.csv",
+        "sizeBytes": 6109,
+        "sha256": "9dc93129f4c2d17e8d0ee222eee19a1d704160878e07d90cd5327a0aadb79c91"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xb8a9649eab319c95ab01c2db59654729946d349f-0x3ebf053ed8da31c0f12af92a32c53e4e3cd3f0b4.csv",
+        "sizeBytes": 6076,
+        "sha256": "c98472698f1da897f26f279fcfe7bce6682a9e39ffe7f46f10ac25d7647f3e6e"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xb979be9dabb9fdc0ddb2e11e4e952091ee87a77d-0x1af40dda3773447522aba4317094d96944766ef1.csv",
+        "sizeBytes": 6109,
+        "sha256": "1519a508bb8125dc24557f98990083a05acc19cfa4d758746ef2172ac566aa76"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xc3001f6f407386d791d87b2de8cd48a40fb5911f-0x1fa54d3b9bda245978e0362e108811fd5d474f82.csv",
+        "sizeBytes": 5885,
+        "sha256": "32c99388d8b387b7b353738432889d6c13b0fc19efcf9f23610c16f8cae446c8"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xc55d9828b29f7b1c047cdf45cafee268ac6601c6-0xbe90858c5a524e1de02ca3943f54fc4be7187751.csv",
+        "sizeBytes": 6106,
+        "sha256": "45ec9f8ae50c27478693411d2950720c09d9396d5b3b257c0d6f43e38786aab5"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xd04ec897f1957ec62a7949369235a82980bb003e-0xd3bc0c24b31d9c48f10838cbfbecf98e3d178b0c.csv",
+        "sizeBytes": 6083,
+        "sha256": "94c074343abcac6a60714d2e5b1dcf249a52198eb12594d63a7d86dc82a44348"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xd0fc12b8cb89fe15816edc554e8f60889c71afbb-0x97619d7dc429edb8d824a900d37c53d4ccc9caea.csv",
+        "sizeBytes": 6094,
+        "sha256": "7a1848c3dbb545de3ea78ae2b6b0c0a0e06a09c103db6c5720f172c754c5f34a"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xd36464fd0a77468527b88f6e694b5d2b4a386681-0x7b3a6c93519e30a0076cff368d9355e105387a3e.csv",
+        "sizeBytes": 6108,
+        "sha256": "abebbe439c87c203cb7afe6b1414c8b7284cd5ceb3c73943b0d03f371b947dbe"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xda5d4e7ee296c66b5cec888fb21a3d3619d081d4-0xa6099621f0e246b4a940fa1e8ab9592552d755fc.csv",
+        "sizeBytes": 6109,
+        "sha256": "f13059d405df0e54096912265ecc3a89614679f793935e772428f4332dafd5be"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xde70c04f00a9401003398aeecad2c0b30816a130-0xc0602c934051852ecfb3ef56162b1c9af9467a19.csv",
+        "sizeBytes": 6105,
+        "sha256": "6e0e4a1d52d5dfab75df15cf608b1117dcbbaa5d8015f3e19f521a1756a92aba"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xe0fda19799b5100192f2ba402cb9150adfc42501-0x1f3cc59bff668d8de95afda249f558c2c9696a04.csv",
+        "sizeBytes": 5510,
+        "sha256": "9f77ed135a3227b743875b9f631eb52f1eeae39c2b3b20a9cc1a39b1181d3406"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xe26a0553bcfe9456c00c16eb83c570839264c99a-0xdbaba9fb91928d03a2edfe2322208c1c2ccd1bbf.csv",
+        "sizeBytes": 6106,
+        "sha256": "01433d125ea996e4a96e0fee02056eb8b7e16b20e0be044a12d60f9777a681ed"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xe2b13924ea708473e6c5f4c159617cd7794520a1-0x30577e2606ea90080b3675acb09ce227efe488d2.csv",
+        "sizeBytes": 6111,
+        "sha256": "c933fe36afed4be4a27ec86ed0ce59f6156bd2d2e26cc4bc3a745dd5e0012669"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xe36881a872a0313f510ec449b102876e77c166e1-0x869b1ed60f4a43c72fd874f10000b38943f4eadc.csv",
+        "sizeBytes": 6107,
+        "sha256": "672a0fbc904309903193cabd9c8caac633525a4144d137b91f8f0da3d292ed06"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xf180538c66382054b17778740e8054e3cdc5aff2-0x9f6a7bcd7d90225c524bb9d36c56c1a881e7fe8f.csv",
+        "sizeBytes": 6095,
+        "sha256": "ba2c48102ff27fb8d35b99a8a1349f6512e1cb23efed40c1fad9c3dc71250383"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xf278ac8e97dd418a3ce13307fa1b44ff87a18f7c-0x409db6edb47150f28da0b4b6d84e61e0a6238127.csv",
+        "sizeBytes": 6112,
+        "sha256": "df80e6f513df15ce57eb76fea7de9ae50f442fa04824afede17c07cd16ed8e34"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xf2e240a76c41208f1b6d0ce5b8ec3150ef3ce410-0x93cec1b97ccfebf0d088801cc020421e9c4d5793.csv",
+        "sizeBytes": 6095,
+        "sha256": "31c5cae46163123b01ff71350220a943baf0ae89cf00a692657d189a3f85b33f"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xf2f5da9a4bc63f9aa77ac67f8ca2700e8218deb1-0xa9047e5def0523e87bd3ca13ece0f54b5a05d395.csv",
+        "sizeBytes": 6109,
+        "sha256": "6eb1a437d0d61cd8909393ba3c56389412de3750ad237787b2b188a9a3a87e9b"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xf544b23a99befc7820530077b0257c3a60c23f92-0x7edc57db68ca6a536bde4fbed78af2bf2cd0bde5.csv",
+        "sizeBytes": 6001,
+        "sha256": "fc55709ad8ee2056db61f548edac5426eacacbeed6e0fab93ae90f122bcad1b1"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xf8c421c27ac08e3ff1a73e30f517ff1c7fcdc466-0x0462a26e646352dea6df8edb16d8001f119ec89d.csv",
+        "sizeBytes": 6098,
+        "sha256": "06761c2b202c2be300c97794fead94d89c0fe3d78b6fd7748c0b90852e584630"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xfc44421e8641f344ae44f0c22144e053bdc14263-0x2c265355448e01fa2f0ffe5ba3b1c4621c4e285a.csv",
+        "sizeBytes": 6102,
+        "sha256": "0629dfa2be4e2a50ea782eb4b47f1167d35a8d6cf4791afb0f6b55bea2999560"
+      },
+      {
+        "file": "Moonbeam-Holders-xcDOT-0xfe925139e6fe0435a274d5057712f6a11861dfcf-0xc050e607cdf2616e8760fdcd7c7a9ecea4b96e58.csv",
+        "sizeBytes": 5971,
+        "sha256": "f7ee60bba6ebaae4d69fbc8ccbd48a8f8f0b1845a8bdc745f213344b40339808"
+      }
+    ],
+    "rawDatasetDigest": "6be5e3aa25267d1d666f14bd3c3f129ff0436501048c5ae786cf76d6e01fd4b8"
+  },
+  "asset": {
+    "symbol": "xcDOT",
+    "decimals": 10,
+    "assetId": "42259045809535163221576417993425387648",
+    "contract": "0xffffffff1fcacbd218edc0eba20fc2308c778080"
+  }
+}
