@@ -92,9 +92,11 @@ function buildStatistics(holders, snapshot) {
 
 function main() {
   const snapshot = readJson(join(sourceData, 'snapshot.json'));
+  const publicSnapshot = structuredClone(snapshot);
+  if (publicSnapshot.limitations) delete publicSnapshot.limitations.classificationComplete;
   const evidenceIndex = readJson(join(sourceData, 'evidence-index.json'));
   const holders = readHolders();
-  const statistics = buildStatistics(holders, snapshot);
+  const statistics = buildStatistics(holders, publicSnapshot);
 
   const sum = holders.reduce((total, holder) => total + BigInt(holder.balancePlanck), 0n);
   const totalSupply = BigInt(
@@ -148,17 +150,16 @@ function main() {
       };
     });
 
-  writeJson(join(outputData, 'snapshot.json'), snapshot);
+  writeJson(join(outputData, 'snapshot.json'), publicSnapshot);
   writeJson(join(outputData, 'statistics.json'), statistics);
   writeJson(join(outputData, 'holders-index.json'), holderIndex);
   writeJson(join(outputData, 'holders-ranked.json'), ranked);
   writeJson(join(outputData, 'evidence-index.json'), evidenceIndex);
   writeJson(join(outputData, 'manifest.json'), {
-    schemaVersion: 1,
-    snapshotId: snapshot.snapshotId,
-    sourceCommit: '20eaffd',
+    schemaVersion: 2,
+    snapshotId: publicSnapshot.snapshotId,
+    proofBaseline: '20eaffd',
     staticOnly: true,
-    candidateDigest: readFileSync(join(sourceData, 'candidate-addresses.sha256'), 'utf8').trim(),
     holdersDigest: sha256(readFileSync(join(sourceData, 'holders.jsonl'))),
   });
   for (const name of ['holders.csv', 'holders.jsonl'])

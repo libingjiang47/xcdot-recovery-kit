@@ -1,6 +1,6 @@
 # xcDOT Recovery Kit
 
-**English** · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [Deutsch](docs/README.de.md) · [Français](docs/README.fr.md)
+**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
 
 Open-source tools and datasets for recovering and verifying final-state xcDOT balances on Moonbeam.
 
@@ -90,6 +90,10 @@ Open the static query page:
 [https://libingjiang47.github.io/xcdot-recovery-kit/](https://libingjiang47.github.io/xcdot-recovery-kit/)
 
 It can look up an address balance, show its associated proof, and download independent evidence. The website never queries an RPC at runtime.
+
+Technical details: [verification](docs/verification.md), [evidence format](docs/evidence-format.md),
+[threat model](docs/threat-model.md), [limitations](docs/limitations.md), and
+[frontend](docs/frontend.md).
 
 ## Disclaimer
 

@@ -1,5 +1,13 @@
 # Threat model
 
-The primary threats are a malicious or inconsistent RPC, the wrong pinned block, incomplete pagination, incorrect runtime decoding, numeric precision loss, non-deterministic output, and selecting the wrong asset. The mitigations are an explicit block hash, recorded state root and runtime identity, metadata-driven decoding, strict pagination and duplicate checks, BigInt-only quantities, deterministic sorting and serialization, asset ID/symbol/decimals/XC-20 validation, supply reconciliation, and independent EVM checks.
+RPC providers, explorers, and indexers are untrusted. They may be unavailable,
+pruned, inconsistent, or incomplete. The release therefore does not accept an
+off-chain balance as final evidence.
 
-No explorer API, off-chain identity enrichment, private service, private key, or automatic beneficiary inference is used. Multiple independent providers are required before a snapshot is proposed as canonical. Public RPCs can still lie; provider agreement is evidence for review, not a cryptographic replacement for chain consensus.
+The pinned Moonbeam state root is the trust anchor. Every published total-supply
+and holder balance is checked against that root with a Substrate trie read proof.
+Verification is performed locally by the independent Rust verifier, without
+network access.
+
+The snapshot describes observed terminal-state balances. It does not establish
+asset ownership, private-key control, claim eligibility, or a recovery policy.

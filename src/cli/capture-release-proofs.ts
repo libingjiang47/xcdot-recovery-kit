@@ -6,7 +6,7 @@ export function captureReleaseProofsCommand(): Command {
     'Capture raw terminal-state Substrate read proofs for the frozen known balances',
   );
   command.option('--data <directory>', 'Release data directory', 'data');
-  command.option('--source <file>', 'Frozen final-balances NDJSON source');
+  command.requiredOption('--source <file>', 'Frozen final-balances NDJSON source');
   command.option('--key-file <file>', 'Local file containing DWELLIR_KEY');
   command.option('--endpoint <url>', 'Dwellir endpoint base URL');
   command.option('--timeout-ms <ms>', 'Overall curl request timeout', '900000');
@@ -17,7 +17,7 @@ export function captureReleaseProofsCommand(): Command {
   command.action(
     async (options: {
       data: string;
-      source?: string;
+      source: string;
       keyFile?: string;
       endpoint?: string;
       timeoutMs?: string;
@@ -30,10 +30,10 @@ export function captureReleaseProofsCommand(): Command {
         value === undefined ? undefined : Number(value);
       const captureOptions: CaptureReleaseProofOptions = {
         data: options.data,
+        source: options.source,
         resume: options.resume ?? true,
         progress: (message) => console.error(message),
       };
-      if (options.source !== undefined) captureOptions.source = options.source;
       if (options.keyFile !== undefined) captureOptions.keyFile = options.keyFile;
       if (options.endpoint !== undefined) captureOptions.endpointBase = options.endpoint;
       const timeoutMs = parse(options.timeoutMs);

@@ -1,8 +1,0 @@
-{
-  "status": "FAIL",
-  "method": "state_getStorage",
-  "key": "0x3a636f6465",
-  "blockHash": "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f",
-  "errorCode": "DWELLIR_TIMEOUT",
-  "error": "Error: Command failed: curl --silent --show-error --max-time 15 --request POST --header Content-Type: application/json --data-raw {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"state_getStorage\",\"params\":[\"0x3a636f6465\",\"0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f\"]} --write-out \n__XCDOT_HTTP_STATUS__:%{http_code}\n https://api-moonbeam.n.dwellir.com/<redacted-key>\ncurl: (28) Connection timed out after 15000 milliseconds\n"
-}

@@ -1,8 +1,0 @@
-{
-  "status": "FAIL",
-  "method": "chain_getHeader",
-  "blockHash": "0xef087d70dd12e19483664824894679360264159cd6e350da2ab79176a335687f",
-  "attempts": 3,
-  "errorCode": "DWELLIR_TRANSPORT_ERROR",
-  "error": "TypeError: fetch failed; cause=ConnectTimeoutError: Connect Timeout Error (attempted address: api-moonbeam.n.dwellir.com:443, timeout: 10000ms)"
-}

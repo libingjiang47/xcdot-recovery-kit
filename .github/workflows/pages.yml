@@ -57,7 +57,7 @@ jobs:
         run: pnpm verify:release
 
       - name: Verify release reproducibility
-        run: git diff --exit-code -- data/snapshot.json SHA256SUMS
+        run: git diff --exit-code -- data SHA256SUMS
 
       - name: Verify release hashes
         run: sha256sum -c SHA256SUMS
