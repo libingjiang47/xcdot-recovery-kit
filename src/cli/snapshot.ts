@@ -70,7 +70,12 @@ function initialClassifications(addresses: string[]): {
   return {
     schemaVersion: 1,
     status: 'NOT_RUN',
-    accounts: addresses.map((address) => ({ address, codeStatus: 'unknown' as const })),
+    accounts: addresses.map((address) => ({
+      address,
+      codeStatus: 'unknown' as const,
+      classification: 'unknown' as const,
+      source: 'not-captured',
+    })),
   };
 }
 

@@ -52,13 +52,15 @@ export interface SnapshotManifest {
   snapshotDigest: string;
 }
 
-export type CodeStatus = 'no_code' | 'has_code' | 'unknown';
+export type CodeStatus = 'no_code' | 'has_code' | 'system_precompile' | 'unknown';
 
 export interface AccountClassification {
   address: string;
   codeStatus: CodeStatus;
+  classification: 'code-present' | 'no-code' | 'system-precompile' | 'unknown';
   codeSize?: number;
   codeHash?: string;
+  source: string;
 }
 
 export interface VerificationResult {

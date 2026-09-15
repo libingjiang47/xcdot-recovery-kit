@@ -7,6 +7,7 @@ snapshots/subscan/*.csv:Zone.Identifier
 diagnostics/*/work/
 diagnostics/sqd-xcdot-transfer-discovery/**
 diagnostics/sqd-backward-recovery/**
+diagnostics/classification/**
 work/final-state/
 snapshots/final-state/
 web/data/
