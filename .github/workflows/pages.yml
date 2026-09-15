@@ -74,6 +74,7 @@ jobs:
           test -f web/404.html
           test -f web/app.js
           test -f web/styles.css
+          test -f web/i18n.js
 
           test -f web/data/snapshot.json
           test -f web/data/statistics.json

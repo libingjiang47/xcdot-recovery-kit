@@ -1,3 +1,5 @@
+import { SUPPORTED_LOCALES, getLocale, htmlLanguage, resolveLocale, setLocale, t } from './i18n.js';
+
 const DATA = './data/';
 const BASE_PATH = new URL('./', import.meta.url).pathname.replace(/\/$/, '');
 const state = { snapshot: null, statistics: null, holders: {}, ranked: [], evidence: new Map() };
@@ -42,70 +44,91 @@ async function loadJson(path) {
   return response.json();
 }
 
+function applyLocale() {
+  document.documentElement.lang = htmlLanguage(getLocale());
+  document.title = t('meta.title');
+}
+
 function showToast(message) {
   const toast = $('#toast');
+  if (!toast) return;
   toast.textContent = message;
   toast.classList.add('visible');
   window.setTimeout(() => toast.classList.remove('visible'), 1800);
 }
 
-async function copyText(value, message = 'Copied') {
+async function copyText(value, message = t('toast.copied')) {
   await navigator.clipboard.writeText(value);
   showToast(message);
 }
 
-function copyButton(value, label = 'Copy') {
-  return `<button class="text-button" data-copy="${escapeHtml(value)}" aria-label="${label}">${label}</button>`;
+function copyButton(value) {
+  return `<button type="button" class="text-button" data-copy="${escapeHtml(value)}" aria-label="${escapeHtml(t('common.copy'))}">${escapeHtml(t('common.copy'))}</button>`;
+}
+
+function socialIcon(kind) {
+  if (kind === 'x')
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.9 2H22l-6.77 7.74L23.2 22h-6.25l-4.9-6.41L6.45 22H3.3l7.24-8.28L2.8 2h6.4l4.43 5.85L18.9 2Zm-1.1 17.8h1.73L8.27 4.1H6.42L17.8 19.8Z"/></svg>';
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2a9.8 9.8 0 0 0-3.1 19.1c.49.09.67-.21.67-.47v-1.83c-2.73.59-3.3-1.16-3.3-1.16-.45-1.14-1.1-1.44-1.1-1.44-.9-.62.07-.61.07-.61 1 .07 1.53 1.02 1.53 1.02.88 1.52 2.3 1.08 2.86.83.09-.64.34-1.08.62-1.33-2.18-.25-4.47-1.09-4.47-4.85 0-1.07.38-1.94 1.02-2.63-.1-.25-.44-1.25.1-2.6 0 0 .83-.27 2.7 1.01A9.4 9.4 0 0 1 12 6.9c.84 0 1.68.11 2.47.34 1.87-1.28 2.7-1.01 2.7-1.01.54 1.35.2 2.35.1 2.6.64.69 1.02 1.56 1.02 2.63 0 3.77-2.3 4.6-4.49 4.84.35.31.66.92.66 1.85v2.73c0 .27.18.57.68.47A9.8 9.8 0 0 0 12 2.2Z"/></svg>';
+}
+
+function languageSelector() {
+  const labels = {
+    en: 'English',
+    'zh-CN': '简体中文',
+    ja: '日本語',
+    de: 'Deutsch',
+    fr: 'Français',
+  };
+  return `<label class="language-picker"><span class="sr-only">${escapeHtml(t('nav.language'))}</span><select id="language-select" aria-label="${escapeHtml(t('nav.language'))}">${SUPPORTED_LOCALES.map((locale) => `<option value="${locale}" ${locale === getLocale() ? 'selected' : ''}>${labels[locale]}</option>`).join('')}</select></label>`;
 }
 
 function header(active) {
-  return `<header class="site-header"><a class="brand" href="./">xcDOT Terminal Snapshot</a><nav aria-label="Primary navigation"><a class="${active === 'home' ? 'active' : ''}" href="./">Home</a><a class="${active === 'statistics' ? 'active' : ''}" href="./statistics">Statistics</a><a class="${active === 'top' ? 'active' : ''}" href="./top">Top</a></nav><div class="header-meta"><span>Moonbeam #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</span><span class="badge verified">Verified Snapshot</span></div></header>`;
+  const block = Number(state.snapshot.terminalState.blockNumber).toLocaleString('en-US');
+  return `<header class="site-header"><a class="brand" href="./">xcDOT Terminal Snapshot</a><nav aria-label="${escapeHtml(t('nav.primary'))}"><a class="${active === 'home' ? 'active' : ''}" href="./">${escapeHtml(t('nav.home'))}</a><a class="${active === 'statistics' ? 'active' : ''}" href="./statistics">${escapeHtml(t('nav.statistics'))}</a><a class="${active === 'top' ? 'active' : ''}" href="./top">${escapeHtml(t('nav.top'))}</a></nav><div class="header-meta"><span>Moonbeam #${block}</span><span class="badge verified">${escapeHtml(t('header.verifiedSnapshot'))}</span></div><div class="header-actions">${languageSelector()}<a class="icon-link" href="https://x.com/libingjiang47" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(t('nav.x'))}" title="${escapeHtml(t('nav.x'))}">${socialIcon('x')}</a><a class="icon-link" href="https://github.com/libingjiang47/xcdot-recovery-kit" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(t('nav.github'))}" title="${escapeHtml(t('nav.github'))}">${socialIcon('github')}</a></div></header>`;
 }
 
 function footer() {
   const recovery = state.snapshot.recovery;
-  return `<footer class="site-footer"><div class="footer-meta"><strong>Moonbeam terminal block #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</strong><span>${recovery.positiveHolderAddresses.toLocaleString()} known non-zero addresses</span><span>${formatPlanck(recovery.unattributedPlanck)} xcDOT remains unattributed</span><span>Static snapshot · ${escapeHtml(state.snapshot.snapshotId)}</span></div><div class="footer-links"><a href="https://github.com/libingjiang47/xcdot-recovery-kit">GitHub repository</a><a href="./data/holders.csv" download>Download CSV</a><a href="./data/holders.jsonl" download>Download JSONL</a><a href="./data/manifest.json" download>Download manifest</a><a href="./data/SHA256SUMS" download>SHA256SUMS</a></div></footer>`;
-}
-
-function summaryCards() {
-  const recovery = state.snapshot.recovery;
-  return `<section class="summary-grid" aria-label="Snapshot summary"><article class="stat-card"><span>Known Addresses</span><strong>${recovery.positiveHolderAddresses.toLocaleString()}</strong><small>known non-zero</small></article><article class="stat-card"><span>Known Recovered</span><strong>${formatPlanck(recovery.knownBalancePlanck)}</strong><small>xcDOT</small></article><article class="stat-card"><span>Total Supply</span><strong>${formatPlanck(recovery.totalSupplyPlanck)}</strong><small>xcDOT</small></article><article class="stat-card warning"><span>Unattributed</span><strong>${formatPlanck(recovery.unattributedPlanck)}</strong><small>xcDOT</small></article></section>`;
+  const block = Number(state.snapshot.terminalState.blockNumber).toLocaleString('en-US');
+  return `<footer class="site-footer"><div class="footer-meta"><strong>${escapeHtml(t('footer.terminalBlock', { block }))}</strong><span>${escapeHtml(t('footer.knownAddresses', { count: recovery.positiveHolderAddresses.toLocaleString('en-US') }))}</span><span>${escapeHtml(t('footer.unattributed', { amount: formatPlanck(recovery.unattributedPlanck) }))}</span><span>${escapeHtml(t('footer.staticSnapshot', { id: state.snapshot.snapshotId }))}</span></div><div class="footer-links"><a href="https://github.com/libingjiang47/xcdot-recovery-kit" target="_blank" rel="noopener noreferrer">${escapeHtml(t('footer.github'))}</a><a href="./data/holders.csv" download>${escapeHtml(t('footer.downloadCsv'))}</a><a href="./data/holders.jsonl" download>${escapeHtml(t('footer.downloadJsonl'))}</a><a href="./data/manifest.json" download>${escapeHtml(t('footer.downloadManifest'))}</a><a href="./data/SHA256SUMS" download>${escapeHtml(t('footer.sha256'))}</a></div></footer>`;
 }
 
 function resultFor(address) {
   const normalized = address.trim().toLowerCase();
-  if (!/^0x[0-9a-f]{40}$/.test(normalized)) return { error: 'Invalid EVM address.' };
+  if (!/^0x[0-9a-f]{40}$/.test(normalized)) return { error: true };
   const holder = state.holders[normalized];
   return holder ? { address: normalized, holder } : { missing: true, address: normalized };
 }
 
 function lookupForm() {
   const terminal = state.snapshot.terminalState;
-  return `<section class="panel search-panel"><div class="section-heading"><h2>Find an xcDOT balance</h2></div><form id="lookup-form"><label class="sr-only" for="address-input">EVM address</label><div class="search-row"><input id="address-input" autocomplete="off" inputmode="text" placeholder="Enter a 0x address" /><button type="submit">Search</button></div></form><div class="terminal-context"><div><span>Moonbeam block</span><strong>${Number(terminal.blockNumber).toLocaleString()}</strong></div><div><span>State root</span><div><code title="${terminal.stateRoot}">${shortHash(terminal.stateRoot)}</code> ${copyButton(terminal.stateRoot)}</div></div></div><div id="lookup-result" class="lookup-placeholder">Enter a canonical H160 address.</div></section>`;
+  return `<section class="panel search-panel"><div class="section-heading"><h2>${escapeHtml(t('search.title'))}</h2></div><form id="lookup-form"><label class="sr-only" for="address-input">${escapeHtml(t('search.addressPlaceholder'))}</label><div class="search-row"><input id="address-input" autocomplete="off" inputmode="text" placeholder="${escapeHtml(t('search.addressPlaceholder'))}" /><button type="submit">${escapeHtml(t('search.button'))}</button></div></form><div class="terminal-context"><div><span>${escapeHtml(t('search.moonbeamBlock'))}</span><strong>${Number(terminal.blockNumber).toLocaleString('en-US')}</strong></div><div><span>${escapeHtml(t('search.stateRoot'))}</span><button type="button" class="copyable-code" data-copy="${escapeHtml(terminal.stateRoot)}" data-copy-message="${escapeHtml(t('search.stateRootCopied'))}" title="${escapeHtml(t('search.copyStateRoot'))}" aria-label="${escapeHtml(t('search.copyStateRoot'))}"><code>${shortHash(terminal.stateRoot)}</code></button></div></div><div id="lookup-result"></div></section>`;
 }
 
 function notFound(result) {
-  return `<div class="notice"><strong>No non-zero balance record was found</strong><p>There is no record for <code>${escapeHtml(result.address)}</code> in the recovered snapshot.</p><p>This does not prove that the address had a zero terminal balance.</p><p>${formatPlanck(state.snapshot.recovery.unattributedPlanck)} xcDOT remains unattributed.</p></div>`;
+  const address = `<code>${escapeHtml(result.address)}</code>`;
+  return `<div class="notice"><strong>${escapeHtml(t('notFound.title'))}</strong><p>${t('notFound.detail', { address })}</p><p>${escapeHtml(t('notFound.zeroWarning'))}</p><p>${escapeHtml(t('notFound.unattributed', { amount: formatPlanck(state.snapshot.recovery.unattributedPlanck) }))}</p></div>`;
 }
 
 function evidencePanel(result, proof) {
   if (!proof)
-    return '<div class="evidence-unavailable">Evidence file unavailable. The frozen balance remains available, but proof details could not be loaded.</div>';
+    return `<div class="evidence-unavailable">${escapeHtml(t('evidence.unavailable'))}</div>`;
   const entry = proof.keys[result.holder.keyIndex];
   if (
     !entry ||
     entry.address !== result.address ||
     entry.balancePlanck !== result.holder.balancePlanck
   )
-    return '<div class="evidence-unavailable">Evidence file unavailable.</div>';
-  return `<div class="evidence-panel"><div class="evidence-summary"><div><span>Proof Status</span><strong class="good">Verified</strong><small>The stored proof was verified offline against the frozen terminal state root.</small></div><div><span>State Root</span><code>${shortHash(state.snapshot.terminalState.stateRoot)}</code></div><div><span>Proof Bundle</span><code>${proof.proofId}</code></div></div><details><summary>Show technical details</summary><dl class="details"><dt>Block hash</dt><dd><code>${state.snapshot.terminalState.blockHash}</code> ${copyButton(state.snapshot.terminalState.blockHash)}</dd><dt>State root</dt><dd><code>${state.snapshot.terminalState.stateRoot}</code> ${copyButton(state.snapshot.terminalState.stateRoot)}</dd><dt>Solidity storage slot</dt><dd><code>${entry.solidityStorageSlot}</code> ${copyButton(entry.solidityStorageSlot)}</dd><dt>Substrate storage key</dt><dd><code>${entry.substrateStorageKey}</code> ${copyButton(entry.substrateStorageKey)}</dd><dt>Raw storage value</dt><dd><code>${entry.storageValue}</code> ${copyButton(entry.storageValue)}</dd><dt>Proof key index</dt><dd>${result.holder.keyIndex}</dd></dl></details><div class="evidence-actions"><button data-evidence-action="copy">Copy Evidence</button><button class="secondary" data-evidence-action="download">Download Evidence</button></div></div>`;
+    return `<div class="evidence-unavailable">${escapeHtml(t('evidence.unavailable'))}</div>`;
+  return `<div class="evidence-panel"><div class="evidence-summary"><div><span>${escapeHtml(t('result.proofStatus'))}</span><strong class="good">${escapeHtml(t('result.verified'))}</strong><small>${escapeHtml(t('evidence.verifiedDescription'))}</small></div><div><span>${escapeHtml(t('evidence.stateRoot'))}</span><code>${shortHash(state.snapshot.terminalState.stateRoot)}</code></div><div><span>${escapeHtml(t('evidence.proofBundle'))}</span><code>${proof.proofId}</code></div></div><details><summary>${escapeHtml(t('evidence.showTechnicalDetails'))}</summary><dl class="details"><dt>${escapeHtml(t('evidence.blockHash'))}</dt><dd><code>${state.snapshot.terminalState.blockHash}</code> ${copyButton(state.snapshot.terminalState.blockHash)}</dd><dt>${escapeHtml(t('evidence.stateRoot'))}</dt><dd><code>${state.snapshot.terminalState.stateRoot}</code> ${copyButton(state.snapshot.terminalState.stateRoot)}</dd><dt>${escapeHtml(t('evidence.solidityStorageSlot'))}</dt><dd><code>${entry.solidityStorageSlot}</code> ${copyButton(entry.solidityStorageSlot)}</dd><dt>${escapeHtml(t('evidence.substrateStorageKey'))}</dt><dd><code>${entry.substrateStorageKey}</code> ${copyButton(entry.substrateStorageKey)}</dd><dt>${escapeHtml(t('evidence.rawStorageValue'))}</dt><dd><code>${entry.storageValue}</code> ${copyButton(entry.storageValue)}</dd><dt>${escapeHtml(t('evidence.proofKeyIndex'))}</dt><dd>${result.holder.keyIndex}</dd></dl></details><div class="evidence-actions"><button type="button" data-evidence-action="copy">${escapeHtml(t('evidence.copy'))}</button><button type="button" class="secondary" data-evidence-action="download">${escapeHtml(t('evidence.download'))}</button></div></div>`;
 }
 
 function renderResult(result) {
   const target = $('#lookup-result');
   if (result.error) {
     target.className = 'lookup-result error';
-    target.textContent = result.error;
+    target.textContent = t('search.invalidAddress');
     return;
   }
   if (result.missing) {
@@ -113,11 +136,11 @@ function renderResult(result) {
     target.innerHTML = notFound(result);
     return;
   }
-  target.className = 'lookup-result';
   const { holder } = result;
-  target.innerHTML = `<div class="balance-result"><div class="result-top"><div><span class="address-label">${shortAddress(result.address)}</span><button class="text-button" data-copy="${result.address}">Copy address</button></div></div><strong class="balance">${formatPlanck(holder.balancePlanck)} <small>xcDOT</small></strong><dl class="result-fields"><dt>Planck</dt><dd>${holder.balancePlanck}</dd><dt>Proof Status</dt><dd id="proof-loading">Loading frozen proof…</dd><dt>Terminal Block</dt><dd>${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}</dd></dl></div><div id="evidence-result" class="evidence-wrap"><p class="muted">Loading evidence bundle…</p></div>`;
+  target.className = 'lookup-result';
+  target.innerHTML = `<div class="balance-result"><div class="result-top"><span class="address-label">${shortAddress(result.address)}</span><button type="button" class="text-button" data-copy="${escapeHtml(result.address)}" data-copy-message="${escapeHtml(t('toast.addressCopied'))}" aria-label="${escapeHtml(t('common.copyAddress'))}">${escapeHtml(t('common.copyAddress'))}</button></div><strong class="balance">${formatPlanck(holder.balancePlanck)} <small>xcDOT</small></strong><dl class="result-fields"><dt>${escapeHtml(t('result.planck'))}</dt><dd>${holder.balancePlanck}</dd><dt>${escapeHtml(t('result.proofStatus'))}</dt><dd id="proof-loading">${escapeHtml(t('result.loadingProof'))}</dd><dt>${escapeHtml(t('result.terminalBlock'))}</dt><dd>${Number(state.snapshot.terminalState.blockNumber).toLocaleString('en-US')}</dd></dl></div><div id="evidence-result" class="evidence-wrap"><p class="muted">${escapeHtml(t('result.loadingProof'))}</p></div>`;
   wireGlobalCopy();
-  loadEvidence(result);
+  void loadEvidence(result);
 }
 
 function makeEvidence(result, proof) {
@@ -157,19 +180,25 @@ async function loadEvidence(result) {
       proof = await loadJson(`proofs/balance/${meta.proofId}.json`);
       state.evidence.set(meta.proofId, proof);
     } catch {
-      $('#proof-loading').textContent = 'Unavailable';
-      $('#evidence-result').innerHTML = evidencePanel(result, null);
+      const loading = $('#proof-loading');
+      if (loading) loading.textContent = t('result.unavailable');
+      const evidence = $('#evidence-result');
+      if (evidence) evidence.innerHTML = evidencePanel(result, null);
       return;
     }
   }
-  $('#proof-loading').textContent = 'Verified';
-  $('#proof-loading').className = 'good';
-  $('#evidence-result').innerHTML = evidencePanel(result, proof);
+  const loading = $('#proof-loading');
+  if (!loading) return;
+  loading.textContent = t('result.verified');
+  loading.className = 'good';
+  const evidence = $('#evidence-result');
+  evidence.innerHTML = evidencePanel(result, proof);
   wireGlobalCopy();
-  for (const button of document.querySelectorAll('[data-evidence-action]'))
+  for (const button of evidence.querySelectorAll('[data-evidence-action]'))
     button.addEventListener('click', async () => {
       const serialized = JSON.stringify(makeEvidence(result, proof), null, 2);
-      if (button.dataset.evidenceAction === 'copy') await copyText(serialized, 'Evidence copied');
+      if (button.dataset.evidenceAction === 'copy')
+        await copyText(serialized, t('evidence.copied'));
       else {
         const url = URL.createObjectURL(new Blob([serialized], { type: 'application/json' }));
         const link = document.createElement('a');
@@ -177,7 +206,7 @@ async function loadEvidence(result) {
         link.download = `xcdot-evidence-${result.address}.json`;
         link.click();
         URL.revokeObjectURL(url);
-        showToast('Evidence downloaded');
+        showToast(t('evidence.downloaded'));
       }
     });
 }
@@ -186,12 +215,24 @@ function wireGlobalCopy() {
   for (const button of document.querySelectorAll('[data-copy]')) {
     if (button.dataset.copyBound) continue;
     button.dataset.copyBound = 'true';
-    button.addEventListener('click', () => copyText(button.dataset.copy));
+    button.addEventListener('click', () =>
+      copyText(button.dataset.copy, button.dataset.copyMessage || t('toast.copied')),
+    );
   }
 }
 
+function wireHeaderActions() {
+  const select = $('#language-select');
+  select?.addEventListener('change', (event) => {
+    setLocale(event.target.value);
+    render();
+  });
+}
+
 function renderHome() {
-  $('#app').innerHTML = `${header('home')}<main>${lookupForm()}${summaryCards()}</main>${footer()}`;
+  $('#app').innerHTML =
+    `${header('home')}<main class="home-main">${lookupForm()}</main>${footer()}`;
+  wireHeaderActions();
   wireGlobalCopy();
   const input = $('#address-input');
   const query = new URLSearchParams(location.search).get('address');
@@ -209,12 +250,12 @@ function renderHome() {
 
 function metricCards() {
   const summary = state.statistics.snapshot;
-  return `<section class="summary-grid"><article class="stat-card"><span>Known Addresses</span><strong>${summary.knownPositiveAddresses.toLocaleString()}</strong></article><article class="stat-card"><span>Known Recovered</span><strong>${formatPlanck(summary.knownRecoveredPlanck)}</strong><small>xcDOT</small></article><article class="stat-card"><span>Total Supply</span><strong>${formatPlanck(summary.totalSupplyPlanck)}</strong><small>xcDOT</small></article><article class="stat-card warning"><span>Unattributed</span><strong>${formatPlanck(summary.unattributedPlanck)}</strong><small>xcDOT</small></article></section>`;
+  return `<section class="summary-grid" aria-label="${escapeHtml(t('stats.title'))}"><article class="stat-card"><span>${escapeHtml(t('cards.knownAddresses'))}</span><strong>${summary.knownPositiveAddresses.toLocaleString('en-US')}</strong><small>${escapeHtml(t('cards.knownNonZero'))}</small></article><article class="stat-card"><span>${escapeHtml(t('cards.knownRecovered'))}</span><strong>${formatPlanck(summary.knownRecoveredPlanck)}</strong><small>${escapeHtml(t('cards.xcDOT'))}</small></article><article class="stat-card"><span>${escapeHtml(t('cards.totalSupply'))}</span><strong>${formatPlanck(summary.totalSupplyPlanck)}</strong><small>${escapeHtml(t('cards.xcDOT'))}</small></article><article class="stat-card warning"><span>${escapeHtml(t('cards.unattributed'))}</span><strong>${formatPlanck(summary.unattributedPlanck)}</strong><small>${escapeHtml(t('cards.xcDOT'))}</small></article></section>`;
 }
 
 function statBar(label, value, total, detail) {
   const width = Math.min(100, Number((BigInt(value) * 10000n) / BigInt(total)) / 100);
-  return `<div class="bar-row"><div><span>${label}</span><strong>${detail}</strong></div><div class="bar"><i style="width:${width}%"></i></div></div>`;
+  return `<div class="bar-row"><div><span>${escapeHtml(label)}</span><strong>${detail}</strong></div><div class="bar"><i style="width:${width}%"></i></div></div>`;
 }
 
 function renderStatistics() {
@@ -224,7 +265,8 @@ function renderStatistics() {
   const concentration = stats.concentration;
   const maxBucket = Math.max(...distribution.buckets.map((item) => item.addressCount), 1);
   $('#app').innerHTML =
-    `${header('statistics')}<main><section class="page-heading"><p class="eyebrow">Frozen snapshot analysis</p><h1>Statistics</h1><p class="lede">A build-time summary of the known non-zero addresses in the terminal snapshot.</p></section>${metricCards()}<section class="two-column"><section class="panel"><div class="section-heading"><div><p class="eyebrow">Distribution</p><h2>Holder balance distribution</h2></div><span class="muted">xcDOT per address</span></div><div class="histogram">${distribution.buckets.map((bucket) => `<div class="histogram-col"><div class="histogram-bar" style="height:${Math.max(6, (bucket.addressCount / maxBucket) * 100)}%" title="${bucket.addressCount.toLocaleString()} addresses"></div><span>${bucket.label}</span><small>${bucket.addressCount.toLocaleString()}</small></div>`).join('')}</div></section><section class="panel"><div class="section-heading"><div><p class="eyebrow">Concentration</p><h2>Known balance concentration</h2></div><span class="muted">share of known recovered balance</span></div>${statBar('Top 10', concentration.top10Planck, totalSupply, `${formatPlanck(concentration.top10Planck)} xcDOT · ${percent(concentration.top10Planck, totalSupply)}`)}${statBar('Top 100', concentration.top100Planck, totalSupply, `${formatPlanck(concentration.top100Planck)} xcDOT · ${percent(concentration.top100Planck, totalSupply)}`)}${statBar('Top 1,000', concentration.top1000Planck, totalSupply, `${formatPlanck(concentration.top1000Planck)} xcDOT · ${percent(concentration.top1000Planck, totalSupply)}`)}${statBar('Remaining', concentration.remainingPlanck, totalSupply, `${formatPlanck(concentration.remainingPlanck)} xcDOT · ${percent(concentration.remainingPlanck, totalSupply)}`)}</section></section></main>${footer()}`;
+    `${header('statistics')}<main><section class="page-heading"><p class="eyebrow">${escapeHtml(t('stats.eyebrow'))}</p><h1>${escapeHtml(t('stats.title'))}</h1><p class="lede">${escapeHtml(t('stats.lede'))}</p></section>${metricCards()}<section class="two-column"><section class="panel"><div class="section-heading"><div><p class="eyebrow">${escapeHtml(t('stats.distribution'))}</p><h2>${escapeHtml(t('stats.distributionTitle'))}</h2></div><span class="muted">${escapeHtml(t('stats.perAddress'))}</span></div><div class="histogram">${distribution.buckets.map((bucket) => `<div class="histogram-col"><div class="histogram-bar" style="height:${Math.max(6, (bucket.addressCount / maxBucket) * 100)}%" title="${escapeHtml(t('top.matchingAddresses', { count: bucket.addressCount.toLocaleString('en-US') }))}"></div><span>${escapeHtml(bucket.label)}</span><small>${bucket.addressCount.toLocaleString('en-US')}</small></div>`).join('')}</div></section><section class="panel"><div class="section-heading"><div><p class="eyebrow">${escapeHtml(t('stats.concentration'))}</p><h2>${escapeHtml(t('stats.concentrationTitle'))}</h2></div><span class="muted">${escapeHtml(t('stats.shareOfSupply'))}</span></div>${statBar(t('stats.top10'), concentration.top10Planck, totalSupply, `${formatPlanck(concentration.top10Planck)} xcDOT · ${percent(concentration.top10Planck, totalSupply)}`)}${statBar(t('stats.top100'), concentration.top100Planck, totalSupply, `${formatPlanck(concentration.top100Planck)} xcDOT · ${percent(concentration.top100Planck, totalSupply)}`)}${statBar(t('stats.top1000'), concentration.top1000Planck, totalSupply, `${formatPlanck(concentration.top1000Planck)} xcDOT · ${percent(concentration.top1000Planck, totalSupply)}`)}${statBar(t('stats.remaining'), concentration.remainingPlanck, totalSupply, `${formatPlanck(concentration.remainingPlanck)} xcDOT · ${percent(concentration.remainingPlanck, totalSupply)}`)}</section></section></main>${footer()}`;
+  wireHeaderActions();
 }
 
 function updateTopUrl(page, size, query) {
@@ -233,6 +275,10 @@ function updateTopUrl(page, size, query) {
   if (size !== 50) params.set('size', size);
   if (query) params.set('q', query);
   history.replaceState({}, '', `./top${params.toString() ? `?${params}` : ''}`);
+}
+
+function rowCopyButton(address) {
+  return `<button type="button" class="row-copy-button" data-row-copy="${escapeHtml(address)}" aria-label="${escapeHtml(t('common.copyAddress'))}" title="${escapeHtml(t('common.copyAddress'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg></button>`;
 }
 
 function renderTop() {
@@ -246,7 +292,8 @@ function renderTop() {
   const rows = filtered.slice((currentPage - 1) * size, currentPage * size);
   const totalSupply = state.snapshot.recovery.totalSupplyPlanck;
   $('#app').innerHTML =
-    `${header('top')}<main><section class="page-heading"><p class="eyebrow">Known non-zero addresses</p><h1>Top xcDOT Holders</h1><p class="lede">Known non-zero addresses at Moonbeam terminal block #${Number(state.snapshot.terminalState.blockNumber).toLocaleString()}.</p></section><section class="panel top-controls"><label class="filter-search"><span class="sr-only">Filter address</span><input id="top-query" value="${escapeHtml(query)}" placeholder="Filter address" /></label><label class="page-size">Rows <select id="page-size"><option ${size === 25 ? 'selected' : ''}>25</option><option ${size === 50 ? 'selected' : ''}>50</option><option ${size === 100 ? 'selected' : ''}>100</option></select></label></section><section class="panel table-panel"><div class="table-meta"><span>${filtered.length.toLocaleString()} matching addresses</span><span>Page ${currentPage} of ${pageCount}</span></div><div class="table-wrap"><table><thead><tr><th>Rank</th><th>Address</th><th>Balance</th><th>Share</th></tr></thead><tbody>${rows.map((holder) => `<tr><td>#${holder.rank}</td><td><a class="address-link" href="./?address=${holder.address}" title="${holder.address}">${shortAddress(holder.address)}</a> ${copyButton(holder.address, 'Copy')}</td><td><strong>${formatPlanck(holder.balancePlanck)}</strong> xcDOT</td><td>${percent(holder.balancePlanck, totalSupply)}</td></tr>`).join('')}</tbody></table></div><div class="pagination"><button class="secondary" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>Previous</button><span>${currentPage} / ${pageCount}</span><button class="secondary" data-page="${currentPage + 1}" ${currentPage === pageCount ? 'disabled' : ''}>Next</button></div></section></main>${footer()}`;
+    `${header('top')}<main><section class="page-heading"><p class="eyebrow">${escapeHtml(t('top.eyebrow'))}</p><h1>${escapeHtml(t('top.title'))}</h1><p class="lede">${escapeHtml(t('top.lede', { block: Number(state.snapshot.terminalState.blockNumber).toLocaleString('en-US') }))}</p></section><section class="panel top-controls"><label class="filter-search"><span class="sr-only">${escapeHtml(t('top.filterAddress'))}</span><input id="top-query" value="${escapeHtml(query)}" placeholder="${escapeHtml(t('top.filterAddress'))}" /></label><label class="page-size">${escapeHtml(t('top.rows'))} <select id="page-size" aria-label="${escapeHtml(t('top.rows'))}"><option ${size === 25 ? 'selected' : ''}>25</option><option ${size === 50 ? 'selected' : ''}>50</option><option ${size === 100 ? 'selected' : ''}>100</option></select></label></section><section class="panel table-panel"><div class="table-meta"><span>${escapeHtml(t('top.matchingAddresses', { count: filtered.length.toLocaleString('en-US') }))}</span><span>${escapeHtml(t('top.pageOf', { page: currentPage, pages: pageCount }))}</span></div><div class="table-wrap"><table><thead><tr><th>${escapeHtml(t('top.rank'))}</th><th>${escapeHtml(t('top.address'))}</th><th>${escapeHtml(t('top.balance'))}</th><th>${escapeHtml(t('top.share'))}</th></tr></thead><tbody>${rows.map((holder) => `<tr><td>#${holder.rank}</td><td><div class="address-cell"><a class="address-link" href="./?address=${holder.address}" title="${holder.address}">${shortAddress(holder.address)}</a>${rowCopyButton(holder.address)}</div></td><td><strong>${formatPlanck(holder.balancePlanck)}</strong></td><td>${percent(holder.balancePlanck, totalSupply)}</td></tr>`).join('')}</tbody></table></div><div class="pagination"><button type="button" class="secondary" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>${escapeHtml(t('top.previous'))}</button><span>${escapeHtml(t('top.pageOf', { page: currentPage, pages: pageCount }))}</span><button type="button" class="secondary" data-page="${currentPage + 1}" ${currentPage === pageCount ? 'disabled' : ''}>${escapeHtml(t('top.next'))}</button></div></section></main>${footer()}`;
+  wireHeaderActions();
   $('#top-query').addEventListener('input', (event) => {
     updateTopUrl(1, size, event.target.value.toLowerCase());
     renderTop();
@@ -260,10 +307,16 @@ function renderTop() {
       updateTopUrl(Number(button.dataset.page), size, query);
       renderTop();
     });
-  wireGlobalCopy();
+  for (const button of document.querySelectorAll('[data-row-copy]'))
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void copyText(button.dataset.rowCopy, t('toast.addressCopied'));
+    });
 }
 
 function render() {
+  applyLocale();
   const path = location.pathname.slice(BASE_PATH.length).replace(/\/$/, '') || '/';
   if (path === '/statistics') renderStatistics();
   else if (path === '/top') renderTop();
@@ -271,6 +324,7 @@ function render() {
 }
 
 async function main() {
+  setLocale(resolveLocale(), false);
   [state.snapshot, state.statistics, state.holders, state.ranked] = await Promise.all([
     loadJson('snapshot.json'),
     loadJson('statistics.json'),
@@ -282,6 +336,7 @@ async function main() {
 
 window.addEventListener('popstate', render);
 main().catch(() => {
+  applyLocale();
   $('#app').innerHTML =
-    '<main class="fatal"><h1>Snapshot data could not be loaded.</h1><p>The static evidence files are unavailable. No live RPC fallback is used.</p></main>';
+    `<main class="fatal"><h1>${escapeHtml(t('state.fatalTitle'))}</h1><p>${escapeHtml(t('state.fatalDescription'))}</p></main>`;
 });

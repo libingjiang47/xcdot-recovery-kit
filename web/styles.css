@@ -99,6 +99,38 @@ nav a:hover {
   font-size: 0.86rem;
   white-space: nowrap;
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+.language-picker select {
+  min-height: 36px;
+  padding: 7px 26px 7px 9px;
+  color: #53627a;
+  background: #fff;
+  font-size: 0.8rem;
+}
+.icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: #53627a;
+  border-radius: 8px;
+}
+.icon-link:hover {
+  color: #172033;
+  background: #edf3fc;
+  text-decoration: none;
+}
+.icon-link svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
 .badge {
   display: inline-flex;
   align-items: center;
@@ -116,6 +148,9 @@ nav a:hover {
 }
 main {
   padding: 60px 0 30px;
+}
+.home-main {
+  padding-bottom: clamp(72px, 10vh, 120px);
 }
 .eyebrow {
   margin: 0 0 8px;
@@ -256,9 +291,26 @@ summary:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.copyable-code {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 5px;
+  color: #315c9b;
+  background: transparent;
+  text-align: left;
+}
+.copyable-code:hover {
+  background: #edf3fc;
+}
+.copyable-code code {
+  pointer-events: none;
+}
 .lookup-placeholder,
 .lookup-result {
   margin-top: 18px;
+}
+#lookup-result:empty {
+  display: none;
 }
 .lookup-placeholder,
 .muted {
@@ -286,6 +338,41 @@ summary:focus-visible {
 .text-button:hover {
   color: #173b75;
   background: #edf3fc;
+}
+.address-cell {
+  display: grid;
+  grid-template-columns: minmax(0, auto) 30px;
+  align-items: center;
+  gap: 4px;
+  min-width: 150px;
+}
+.row-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  color: #53627a;
+  background: transparent;
+  opacity: 0;
+}
+.row-copy-button:hover {
+  color: #172033;
+  background: #edf3fc;
+}
+.row-copy-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+tr:hover .row-copy-button,
+tr:focus-within .row-copy-button {
+  opacity: 1;
 }
 .balance {
   display: block;
@@ -588,6 +675,9 @@ td strong {
     margin-left: 0;
     padding-bottom: 12px;
   }
+  .header-actions {
+    margin-left: auto;
+  }
   nav a {
     padding: 8px 0 12px;
   }
@@ -664,10 +754,15 @@ td strong {
     justify-content: start;
     text-align: left;
   }
-  th:nth-child(3),
-  td:nth-child(3),
-  th:nth-child(5),
-  td:nth-child(5) {
-    display: none;
+  .home-main {
+    padding-bottom: 56px;
+  }
+  .row-copy-button {
+    opacity: 1;
+  }
+}
+@media (hover: none), (pointer: coarse) {
+  .row-copy-button {
+    opacity: 1;
   }
 }
