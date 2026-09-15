@@ -70,9 +70,28 @@ describe('v1 terminal frontend data boundary', () => {
     expect(app).toContain("t('top.filterAddress')");
     expect(app).toContain("t('stats.distributionTitle')");
     expect(app).toContain("t('stats.concentrationTitle')");
-    expect(app).toContain('class="home-main"');
-    expect(app).toContain('class="copyable-code"');
+    expect(app).not.toContain('class="home-main"');
+    expect(app).toContain('class="copyable-code');
+    expect(app).toContain('function copyableCode');
+    expect(app).not.toContain('function copyButton');
     expect(app).not.toContain('summaryCards');
     expect(app).toContain('schemaVersion: 2');
+  });
+
+  it('uses a full-height shell without a fixed footer spacer', () => {
+    const app = readFileSync(resolve(root, 'web/app.js'), 'utf8');
+    const styles = readFileSync(resolve(root, 'web/styles.css'), 'utf8');
+
+    expect(app).toContain('copyableCode(result.address');
+    expect(app).toContain('copyableCode(state.snapshot.terminalState.blockHash');
+    expect(app).toContain('copyableCode(entry.solidityStorageSlot');
+    expect(app).toContain('copyableCode(entry.substrateStorageKey');
+    expect(app).toContain('copyableCode(entry.storageValue');
+    expect(app).not.toContain('Copy address</button>');
+    expect(styles).toContain('grid-template-rows: auto minmax(0, 1fr) auto');
+    expect(styles).toContain('min-height: 100dvh');
+    expect(styles).toContain('#lookup-result:empty');
+    expect(styles).not.toContain('.home-main');
+    expect(styles).not.toMatch(/\.site-footer\s*\{[^}]*position:\s*(fixed|absolute)/);
   });
 });

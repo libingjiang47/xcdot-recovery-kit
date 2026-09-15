@@ -62,8 +62,11 @@ async function copyText(value, message = t('toast.copied')) {
   showToast(message);
 }
 
-function copyButton(value) {
-  return `<button type="button" class="text-button" data-copy="${escapeHtml(value)}" aria-label="${escapeHtml(t('common.copy'))}">${escapeHtml(t('common.copy'))}</button>`;
+function copyableCode(
+  value,
+  { display = value, message = t('toast.copied'), className = '' } = {},
+) {
+  return `<button type="button" class="copyable-code ${escapeHtml(className)}" data-copy="${escapeHtml(value)}" data-copy-message="${escapeHtml(message)}" title="${escapeHtml(t('common.clickToCopy'))}" aria-label="${escapeHtml(t('common.clickToCopy'))}"><code>${escapeHtml(display)}</code></button>`;
 }
 
 function socialIcon(kind) {
@@ -103,7 +106,7 @@ function resultFor(address) {
 
 function lookupForm() {
   const terminal = state.snapshot.terminalState;
-  return `<section class="panel search-panel"><div class="section-heading"><h2>${escapeHtml(t('search.title'))}</h2></div><form id="lookup-form"><label class="sr-only" for="address-input">${escapeHtml(t('search.addressPlaceholder'))}</label><div class="search-row"><input id="address-input" autocomplete="off" inputmode="text" placeholder="${escapeHtml(t('search.addressPlaceholder'))}" /><button type="submit">${escapeHtml(t('search.button'))}</button></div></form><div class="terminal-context"><div><span>${escapeHtml(t('search.moonbeamBlock'))}</span><strong>${Number(terminal.blockNumber).toLocaleString('en-US')}</strong></div><div><span>${escapeHtml(t('search.stateRoot'))}</span><button type="button" class="copyable-code" data-copy="${escapeHtml(terminal.stateRoot)}" data-copy-message="${escapeHtml(t('search.stateRootCopied'))}" title="${escapeHtml(t('search.copyStateRoot'))}" aria-label="${escapeHtml(t('search.copyStateRoot'))}"><code>${shortHash(terminal.stateRoot)}</code></button></div></div><div id="lookup-result"></div></section>`;
+  return `<section class="panel search-panel"><div class="section-heading"><h2>${escapeHtml(t('search.title'))}</h2></div><form id="lookup-form"><label class="sr-only" for="address-input">${escapeHtml(t('search.addressPlaceholder'))}</label><div class="search-row"><input id="address-input" autocomplete="off" inputmode="text" placeholder="${escapeHtml(t('search.addressPlaceholder'))}" /><button type="submit">${escapeHtml(t('search.button'))}</button></div></form><div class="terminal-context"><div><span>${escapeHtml(t('search.moonbeamBlock'))}</span><strong>${Number(terminal.blockNumber).toLocaleString('en-US')}</strong></div><div><span>${escapeHtml(t('search.stateRoot'))}</span>${copyableCode(terminal.stateRoot, { display: shortHash(terminal.stateRoot), message: t('toast.stateRootCopied'), className: 'compact' })}</div></div><div id="lookup-result"></div></section>`;
 }
 
 function notFound(result) {
@@ -121,7 +124,7 @@ function evidencePanel(result, proof) {
     entry.balancePlanck !== result.holder.balancePlanck
   )
     return `<div class="evidence-unavailable">${escapeHtml(t('evidence.unavailable'))}</div>`;
-  return `<div class="evidence-panel"><div class="evidence-summary"><div><span>${escapeHtml(t('result.proofStatus'))}</span><strong class="good">${escapeHtml(t('result.verified'))}</strong><small>${escapeHtml(t('evidence.verifiedDescription'))}</small></div><div><span>${escapeHtml(t('evidence.stateRoot'))}</span><code>${shortHash(state.snapshot.terminalState.stateRoot)}</code></div><div><span>${escapeHtml(t('evidence.proofBundle'))}</span><code>${proof.proofId}</code></div></div><details><summary>${escapeHtml(t('evidence.showTechnicalDetails'))}</summary><dl class="details"><dt>${escapeHtml(t('evidence.blockHash'))}</dt><dd><code>${state.snapshot.terminalState.blockHash}</code> ${copyButton(state.snapshot.terminalState.blockHash)}</dd><dt>${escapeHtml(t('evidence.stateRoot'))}</dt><dd><code>${state.snapshot.terminalState.stateRoot}</code> ${copyButton(state.snapshot.terminalState.stateRoot)}</dd><dt>${escapeHtml(t('evidence.solidityStorageSlot'))}</dt><dd><code>${entry.solidityStorageSlot}</code> ${copyButton(entry.solidityStorageSlot)}</dd><dt>${escapeHtml(t('evidence.substrateStorageKey'))}</dt><dd><code>${entry.substrateStorageKey}</code> ${copyButton(entry.substrateStorageKey)}</dd><dt>${escapeHtml(t('evidence.rawStorageValue'))}</dt><dd><code>${entry.storageValue}</code> ${copyButton(entry.storageValue)}</dd><dt>${escapeHtml(t('evidence.proofKeyIndex'))}</dt><dd>${result.holder.keyIndex}</dd></dl></details><div class="evidence-actions"><button type="button" data-evidence-action="copy">${escapeHtml(t('evidence.copy'))}</button><button type="button" class="secondary" data-evidence-action="download">${escapeHtml(t('evidence.download'))}</button></div></div>`;
+  return `<div class="evidence-panel"><div class="evidence-summary"><div><span>${escapeHtml(t('result.proofStatus'))}</span><strong class="good">${escapeHtml(t('result.verified'))}</strong><small>${escapeHtml(t('evidence.verifiedDescription'))}</small></div><div><span>${escapeHtml(t('evidence.stateRoot'))}</span>${copyableCode(state.snapshot.terminalState.stateRoot, { display: shortHash(state.snapshot.terminalState.stateRoot), message: t('toast.stateRootCopied') })}</div><div><span>${escapeHtml(t('evidence.proofBundle'))}</span><code>${proof.proofId}</code></div></div><details><summary>${escapeHtml(t('evidence.showTechnicalDetails'))}</summary><dl class="details"><dt>${escapeHtml(t('evidence.blockHash'))}</dt><dd>${copyableCode(state.snapshot.terminalState.blockHash, { message: t('toast.blockHashCopied') })}</dd><dt>${escapeHtml(t('evidence.stateRoot'))}</dt><dd>${copyableCode(state.snapshot.terminalState.stateRoot, { message: t('toast.stateRootCopied') })}</dd><dt>${escapeHtml(t('evidence.solidityStorageSlot'))}</dt><dd>${copyableCode(entry.solidityStorageSlot, { message: t('toast.storageSlotCopied') })}</dd><dt>${escapeHtml(t('evidence.substrateStorageKey'))}</dt><dd>${copyableCode(entry.substrateStorageKey, { message: t('toast.storageKeyCopied') })}</dd><dt>${escapeHtml(t('evidence.rawStorageValue'))}</dt><dd>${copyableCode(entry.storageValue, { message: t('toast.storageValueCopied') })}</dd><dt>${escapeHtml(t('evidence.proofKeyIndex'))}</dt><dd>${result.holder.keyIndex}</dd></dl></details><div class="evidence-actions"><button type="button" data-evidence-action="copy">${escapeHtml(t('evidence.copy'))}</button><button type="button" class="secondary" data-evidence-action="download">${escapeHtml(t('evidence.download'))}</button></div></div>`;
 }
 
 function renderResult(result) {
@@ -138,7 +141,7 @@ function renderResult(result) {
   }
   const { holder } = result;
   target.className = 'lookup-result';
-  target.innerHTML = `<div class="balance-result"><div class="result-top"><span class="address-label">${shortAddress(result.address)}</span><button type="button" class="text-button" data-copy="${escapeHtml(result.address)}" data-copy-message="${escapeHtml(t('toast.addressCopied'))}" aria-label="${escapeHtml(t('common.copyAddress'))}">${escapeHtml(t('common.copyAddress'))}</button></div><strong class="balance">${formatPlanck(holder.balancePlanck)} <small>xcDOT</small></strong><dl class="result-fields"><dt>${escapeHtml(t('result.planck'))}</dt><dd>${holder.balancePlanck}</dd><dt>${escapeHtml(t('result.proofStatus'))}</dt><dd id="proof-loading">${escapeHtml(t('result.loadingProof'))}</dd><dt>${escapeHtml(t('result.terminalBlock'))}</dt><dd>${Number(state.snapshot.terminalState.blockNumber).toLocaleString('en-US')}</dd></dl></div><div id="evidence-result" class="evidence-wrap"><p class="muted">${escapeHtml(t('result.loadingProof'))}</p></div>`;
+  target.innerHTML = `<div class="balance-result"><div class="result-top">${copyableCode(result.address, { display: shortAddress(result.address), message: t('toast.addressCopied'), className: 'address-label' })}</div><strong class="balance">${formatPlanck(holder.balancePlanck)} <small>xcDOT</small></strong><dl class="result-fields"><dt>${escapeHtml(t('result.planck'))}</dt><dd>${holder.balancePlanck}</dd><dt>${escapeHtml(t('result.proofStatus'))}</dt><dd id="proof-loading">${escapeHtml(t('result.loadingProof'))}</dd><dt>${escapeHtml(t('result.terminalBlock'))}</dt><dd>${Number(state.snapshot.terminalState.blockNumber).toLocaleString('en-US')}</dd></dl></div><div id="evidence-result" class="evidence-wrap"><p class="muted">${escapeHtml(t('result.loadingProof'))}</p></div>`;
   wireGlobalCopy();
   void loadEvidence(result);
 }
@@ -230,8 +233,7 @@ function wireHeaderActions() {
 }
 
 function renderHome() {
-  $('#app').innerHTML =
-    `${header('home')}<main class="home-main">${lookupForm()}</main>${footer()}`;
+  $('#app').innerHTML = `${header('home')}<main>${lookupForm()}</main>${footer()}`;
   wireHeaderActions();
   wireGlobalCopy();
   const input = $('#address-input');
